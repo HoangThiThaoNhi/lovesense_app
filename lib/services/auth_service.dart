@@ -45,23 +45,36 @@ class AuthService {
     required String password,
     required String name,
   }) async {
-    // 1. Create User
-    UserCredential cred = await _auth.createUserWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
+    // 1. Create User (with timeout to avoid indefinite waiting)
+    try {
+      final UserCredential cred = await _auth
+          .createUserWithEmailAndPassword(email: email, password: password)
+          .timeout(const Duration(seconds: 15));
 
-    // 2. Update Display Name
-    await cred.user?.updateDisplayName(name);
+      // 2. Update Display Name
+      if (cred.user != null) {
+        await cred.user!
+            .updateDisplayName(name)
+            .timeout(const Duration(seconds: 8));
+      }
 
-    // 3. Save extra info to Firestore (Optional but good practice)
-    if (cred.user != null) {
-      await _firestore.collection('users').doc(cred.user!.uid).set({
-        'uid': cred.user!.uid,
-        'email': email,
-        'name': name,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      // 3. Save extra info to Firestore (Optional but good practice)
+      if (cred.user != null) {
+        await _firestore
+            .collection('users')
+            .doc(cred.user!.uid)
+            .set({
+              'uid': cred.user!.uid,
+              'email': email,
+              'name': name,
+              'createdAt': FieldValue.serverTimestamp(),
+            })
+            .timeout(const Duration(seconds: 10));
+      }
+    } on TimeoutException catch (_) {
+      throw Exception(
+        'Kết nối tới Firebase quá lâu — vui lòng kiểm tra mạng hoặc thử lại.',
+      );
     }
   }
 

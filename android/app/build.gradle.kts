@@ -41,3 +41,15 @@ android {
 flutter {
     source = "../.."
 }
+
+// Apply the Google Services plugin to enable Firebase on Android.
+apply(plugin = "com.google.gms.google-services")
+
+// Firebase dependencies (BoM) and products
+dependencies {
+    // Import the Firebase BoM
+    implementation(platform("com.google.firebase:firebase-bom:34.8.0"))
+
+    // Add the Firebase products you want to use (no versions when using BoM)
+    implementation("com.google.firebase:firebase-analytics")
+}

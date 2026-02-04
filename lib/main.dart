@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'screens/splash_screen.dart';
-// import 'firebase_options.dart'; // User needs to generate this if using CLI, or just standard setup
+import 'screens/auth/login_screen.dart';
+import 'services/auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // IMPORTANT: User must add google-services.json (Android) or GoogleService-Info.plist (iOS)
-  // or use FlutterFire CLI to generate firebase_options.dart
   try {
-    await Firebase.initializeApp();
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
   } catch (e) {
     debugPrint(
       "Firebase Initialization Failed (Did you add config files?): $e",
@@ -31,7 +34,20 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
         textTheme: GoogleFonts.interTextTheme(),
       ),
-      home: const SplashScreen(),
+      home: StreamBuilder<User?>(
+        stream: AuthService().authStateChanges,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const SplashScreen();
+          }
+          if (snapshot.hasData) {
+            // Người dùng đã đăng nhập
+            return const LandingPage();
+          }
+          // Người dùng chưa đăng nhập
+          return const LoginScreen();
+        },
+      ),
     );
   }
 }
