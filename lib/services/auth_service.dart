@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import '../models/user_model.dart';
 
 class AuthService {
   // Use getters to avoid immediate instantiation crash if Firebase isn't initialized
@@ -44,6 +47,7 @@ class AuthService {
     required String email,
     required String password,
     required String name,
+    String role = 'single',
   }) async {
     // 1. Create User (with timeout to avoid indefinite waiting)
     try {
@@ -58,17 +62,20 @@ class AuthService {
             .timeout(const Duration(seconds: 8));
       }
 
-      // 3. Save extra info to Firestore (Optional but good practice)
+      // 3. Save extra info to Firestore
       if (cred.user != null) {
+        final userModel = UserModel(
+          uid: cred.user!.uid,
+          email: email,
+          name: name,
+          role: role,
+          createdAt: DateTime.now(),
+        );
+
         await _firestore
             .collection('users')
             .doc(cred.user!.uid)
-            .set({
-              'uid': cred.user!.uid,
-              'email': email,
-              'name': name,
-              'createdAt': FieldValue.serverTimestamp(),
-            })
+            .set(userModel.toJson())
             .timeout(const Duration(seconds: 10));
       }
     } on TimeoutException catch (_) {

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:email_otp/email_otp.dart';
 import '../../services/auth_service.dart';
 import '../../main.dart'; // For LandingPage
+import '../onboarding/onboarding_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -19,6 +21,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _authService = AuthService();
+  // final EmailOTP _emailOTP = EmailOTP(); // Removed instance
 
   // Validation State
   String? _nameError;
@@ -110,10 +113,172 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
+      // Configure OTP (Static method)
+      EmailOTP.config(
+        appEmail: "verify@lovesense.app",
+        appName: "Lovesense",
+        // userEmail: _emailController.text.trim(), // Replaced by sendOTP parameter in newer version or handled internally if config sets global state?
+        // Actually looking at source for 3.1.0: config sets _appEmail, _appName. 
+        // userEmail is NOT in config in 3.1.0 based on file read.
+        // It is passed in sendOTP logic if we look closely at lines 151.
+        // Wait, line 81: static config({ ... appEmail ... })
+        // It sets static variables.
+        otpLength: 6,
+        otpType: OTPType.numeric, // Changed from digits to numeric
+      );
+
+      // Send OTP (Static method)
+      bool result = await EmailOTP.sendOTP(email: _emailController.text.trim());
+
+      if (!mounted) return;
+
+      if (result) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Đã gửi mã OTP về email. Vui lòng kiểm tra.',
+              style: GoogleFonts.inter(),
+            ),
+            backgroundColor: Colors.blueAccent,
+          ),
+        );
+        // Show OTP Dialog
+        _showOtpDialog();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Gửi OTP thất bại. Vui lòng kiểm tra lại Email.',
+              style: GoogleFonts.inter(),
+            ),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi: $e', style: GoogleFonts.inter()),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _showOtpDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        String otpCode = '';
+        return AlertDialog(
+          title: Text(
+            'Xác thực OTP',
+            style: GoogleFonts.montserrat(fontWeight: FontWeight.bold),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Nhập mã 6 số được gửi tới ${_emailController.text.trim()}',
+                style: GoogleFonts.inter(fontSize: 14, color: Colors.black54),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                  fontSize: 24,
+                  letterSpacing: 8,
+                  fontWeight: FontWeight.bold,
+                ),
+                decoration: const InputDecoration(
+                  counterText: '',
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (value) {
+                  otpCode = value;
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Hủy', style: GoogleFonts.inter(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                _verifyOtpAndRegister(otpCode);
+                Navigator.pop(context); // Close dialog to show loading or result
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFF4081),
+              ),
+              child: Text(
+                'Xác nhận',
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _verifyOtpAndRegister(String otpCode) async {
+    if (otpCode.length != 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Mã OTP phải có 6 số', style: GoogleFonts.inter()),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      _showOtpDialog(); // Re-open
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    // Static verifyOTP
+    bool isValid = EmailOTP.verifyOTP(otp: otpCode);
+
+    if (!isValid) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Mã OTP không đúng', style: GoogleFonts.inter()),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      _showOtpDialog(); // Re-open
+      return;
+    }
+
+    // OTP Valid -> Register with Firebase
+    try {
       await _authService.signUp(
         email: _emailController.text.trim(),
         password: _passwordController.text,
         name: _nameController.text.trim(),
+        role: 'single', // Default role
       );
 
       if (!mounted) return;
@@ -125,21 +290,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       );
 
-      // Navigate to Home
+      // Navigate to Onboarding
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const LandingPage()),
+        MaterialPageRoute(builder: (context) => const OnboardingScreen()),
         (route) => false,
       );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-
+      // ... Error handling same as before ...
       String errorMessage = 'Đăng ký thất bại';
       if (e.code == 'weak-password') {
-        errorMessage = 'Mật khẩu quá yếu (cần ít nhất 6 ký tự)';
+        errorMessage = 'Mật khẩu quá yếu';
       } else if (e.code == 'email-already-in-use') {
         errorMessage = 'Email đã được sử dụng';
-      } else if (e.code == 'invalid-email') {
-        errorMessage = 'Email không hợp lệ';
       } else {
         errorMessage = 'Lỗi: ${e.message}';
       }
@@ -152,16 +315,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      // Show actual error message to help debug
-      // If e is Exception("Firebase chưa được cấu hình..."), it will show that.
-      String msg = e.toString();
-      if (msg.startsWith("Exception: ")) {
-        msg = msg.replaceAll("Exception: ", "");
-      }
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Lỗi: $msg', style: GoogleFonts.inter()),
+          content: Text('Lỗi: $e', style: GoogleFonts.inter()),
           backgroundColor: Colors.redAccent,
         ),
       );
