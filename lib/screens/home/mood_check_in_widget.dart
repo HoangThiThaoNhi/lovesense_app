@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -18,10 +17,12 @@ class _MoodCheckInWidgetState extends State<MoodCheckInWidget> {
   MoodType? _selectedMood;
   bool _isLoading = false;
   String? _blockReason;
+  late Stream<DailyMoodSummary> _moodStream;
 
   @override
   void initState() {
     super.initState();
+    _moodStream = _moodService.getDailySummaryStream();
   }
 
   Future<void> _submitMood() async {
@@ -29,28 +30,29 @@ class _MoodCheckInWidgetState extends State<MoodCheckInWidget> {
 
     setState(() => _isLoading = true);
     try {
-      // Logic checked on server/transaction side anyway. 
+      // Logic checked on server/transaction side anyway.
       // But we can double check async if we want, or just try.
       await _moodService.logMood(_selectedMood!);
-      
+
       if (mounted) {
         setState(() {
           _selectedMood = null; // Reset selection on success
-           ScaffoldMessenger.of(context).showSnackBar(
+          ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Đã ghi nhận cảm xúc của bạn!')),
           );
         });
       }
     } catch (e) {
       String errorMessage = e.toString().replaceAll("Exception:", "").trim();
-      if (errorMessage.contains("converted Future") || errorMessage.contains("transaction")) {
-         errorMessage = "Không thể lưu lúc này. Vui lòng thử lại.";
+      if (errorMessage.contains("converted Future") ||
+          errorMessage.contains("transaction")) {
+        errorMessage = "Không thể lưu lúc này. Vui lòng thử lại.";
       }
 
       if (mounted) {
-         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMessage)), 
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(errorMessage)));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -60,15 +62,18 @@ class _MoodCheckInWidgetState extends State<MoodCheckInWidget> {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DailyMoodSummary>(
-      stream: _moodService.getDailySummaryStream(),
+      stream: _moodStream,
       builder: (context, snapshot) {
         final summary = snapshot.data;
         final currentMood = summary?.currentMood;
-        
+
         // Instant check using stream data
         final status = _moodService.checkEligibilityLocal(summary);
         final isBlocked = status['allowed'] == false;
         final blockReason = status['reason'] as String?;
+
+        final effectiveSelection =
+            (isBlocked && currentMood != null) ? currentMood : _selectedMood;
 
         return Container(
           padding: const EdgeInsets.all(20),
@@ -97,135 +102,194 @@ class _MoodCheckInWidgetState extends State<MoodCheckInWidget> {
                     ),
                   ),
                   if (currentMood != null)
-                     Container(
-                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                       decoration: BoxDecoration(
-                         color: MoodEntry.getColor(currentMood).withOpacity(0.2),
-                         borderRadius: BorderRadius.circular(12),
-                       ),
-                       child: Text(
-                         MoodEntry.getLabel(currentMood),
-                         style: GoogleFonts.inter(
-                           fontSize: 12, 
-                           fontWeight: FontWeight.bold,
-                           color: MoodEntry.getColor(currentMood)
-                         ),
-                       ),
-                     ).animate().fadeIn(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: MoodEntry.getColor(currentMood).withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        MoodEntry.getLabel(currentMood),
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: MoodEntry.getColor(currentMood),
+                        ),
+                      ),
+                    ).animate().fadeIn(),
                 ],
               ),
               const SizedBox(height: 16),
-              
-              if (isBlocked) 
-                Container(
-                   width: double.infinity,
-                   padding: const EdgeInsets.all(12),
-                   decoration: BoxDecoration(
-                     color: Colors.grey[100],
-                     borderRadius: BorderRadius.circular(12),
-                     border: Border.all(color: Colors.grey[300]!)
-                   ),
-                   child: Row(
-                     children: [
-                       const Icon(Icons.info_outline, color: Colors.grey),
-                       const SizedBox(width: 8),
-                       Expanded(
-                         child: Text(
-                           blockReason ?? '',
-                           style: GoogleFonts.inter(fontSize: 13, color: Colors.grey[700]),
-                         ),
-                       ),
-                     ],
-                   ),
-                )
-              else 
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: MoodType.values.map((type) {
-                    final isSelected = _selectedMood == type;
-                    // Determine Size
-                    final double size = isSelected ? 56 : 40;
-                    
-                    return GestureDetector(
-                      onTap: isBlocked ? null : () {
-                         setState(() {
-                           _selectedMood = type;
-                         });
-                      },
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // 3D Animated Icon
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.elasticOut,
-                            width: size + 16,
-                            height: size + 16,
-                            padding: EdgeInsets.all(isSelected ? 4 : 0),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: isSelected 
-                                  ? MoodEntry.getColor(type).withOpacity(0.15) 
-                                  : Colors.transparent,
-                               boxShadow: isSelected ? [
-                                BoxShadow(
-                                  color: MoodEntry.getColor(type).withOpacity(0.4),
-                                  blurRadius: 20,
-                                  spreadRadius: 2,
-                                )
-                              ] : null,
-                            ),
-                            child: ColorFiltered(
-                              // Gray out if blocked or not selected
-                              colorFilter: isBlocked 
-                                  ? const ColorFilter.mode(Colors.grey, BlendMode.saturation) 
-                                  : const ColorFilter.mode(Colors.transparent, BlendMode.multiply),
+
+              // Always show Icon Row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children:
+                    MoodType.values.map((type) {
+                      // If blocked, show the saved mood as selected
+                      final isSelected = effectiveSelection == type;
+                      // Determine Size
+                      final double size = isSelected ? 56 : 40;
+
+                      return GestureDetector(
+                        onTap: () {
+                          if (isBlocked) {
+                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  blockReason ?? "Bạn đã hoàn thành check-in.",
+                                ),
+                                duration: const Duration(seconds: 3),
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            );
+                          } else {
+                            setState(() {
+                              _selectedMood = type;
+                            });
+                          }
+                        },
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // 3D Animated Icon
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.elasticOut,
+                              width: size + 16,
+                              height: size + 16,
+                              padding: EdgeInsets.all(isSelected ? 4 : 0),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color:
+                                    isSelected
+                                        ? MoodEntry.getColor(
+                                          type,
+                                        ).withOpacity(0.15)
+                                        : Colors.transparent,
+                                boxShadow:
+                                    isSelected
+                                        ? [
+                                          BoxShadow(
+                                            color: MoodEntry.getColor(
+                                              type,
+                                            ).withOpacity(0.4),
+                                            blurRadius: 20,
+                                            spreadRadius: 2,
+                                          ),
+                                        ]
+                                        : null,
+                              ),
                               child: Stack(
                                 alignment: Alignment.center,
                                 children: [
                                   // 1. Fallback/Placeholder Icon (Always visible initially)
                                   Icon(
-                                    MoodEntry.getIcon(type), 
-                                    size: size, 
-                                    color: MoodEntry.getColor(type).withOpacity(0.5)
+                                    MoodEntry.getIcon(type),
+                                    size: size,
+                                    color: MoodEntry.getColor(
+                                      type,
+                                    ).withOpacity(0.5),
                                   ),
                                   // 2. Lottie Animation
                                   Lottie.network(
                                     MoodEntry.getLottieUrl(type),
                                     fit: BoxFit.contain,
-                                    animate: isSelected, // Animate only when selected
-                                    // Remove enableMergePaths for stability
-                                    errorBuilder: (context, error, stack) => const SizedBox(), // If error, show nothing (Icon below shows)
-                                    frameBuilder: (context, child, composition) {
+                                    animate:
+                                        isSelected, // Animate only when selected
+                                    errorBuilder:
+                                        (context, error, stack) =>
+                                            const SizedBox(),
+                                    frameBuilder: (
+                                      context,
+                                      child,
+                                      composition,
+                                    ) {
                                       if (composition == null) {
-                                        return const SizedBox(); // Loading... show Icon below
+                                        return const SizedBox();
                                       }
-                                      return child; // Loaded!
+                                      return child;
                                     },
                                   ),
                                 ],
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          // Label underneath
-                          AnimatedOpacity(
-                            duration: 200.ms,
-                            opacity: isSelected ? 1.0 : 0.6,
-                            child: Text(
-                              MoodEntry.getLabel(type),
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                                color: isSelected ? MoodEntry.getColor(type) : Colors.grey[600],
+                            const SizedBox(height: 8),
+                            // Label underneath
+                            AnimatedOpacity(
+                              duration: 200.ms,
+                              opacity: isSelected ? 1.0 : 0.6,
+                              child: Text(
+                                MoodEntry.getLabel(type),
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  fontWeight:
+                                      isSelected
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                  color:
+                                      isSelected
+                                          ? MoodEntry.getColor(type)
+                                          : Colors.grey[600],
+                                ),
                               ),
                             ),
-                          )
-                        ],
+                          ],
+                        ),
+                      );
+                    }).toList(),
+              ),
+
+              // Quote Section (Only if Blocked/Checked-In)
+              // Quote Section (Only if Blocked/Checked-In)
+              if (isBlocked && effectiveSelection != null)
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(top: 20),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
+                  decoration: BoxDecoration(
+                    color: MoodEntry.getColor(
+                      effectiveSelection,
+                    ).withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: MoodEntry.getColor(
+                        effectiveSelection,
+                      ).withOpacity(0.15),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        // Use stored quote if available, otherwise fallback to random
+                        (summary?.quote ??
+                                MoodEntry.getRandomQuote(effectiveSelection))
+                            .replaceAll('"', '')
+                            .replaceAll('“', '')
+                            .replaceAll('”', ''),
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          height: 1.5,
+                          fontStyle: FontStyle.italic,
+                          color: Colors.black87,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
-                    );
-                  }).toList(),
-                ),
+                    ],
+                  ),
+                ).animate().fadeIn().slideY(begin: 0.2, end: 0),
 
               if (_selectedMood != null && !isBlocked)
                 Padding(
@@ -235,21 +299,35 @@ class _MoodCheckInWidgetState extends State<MoodCheckInWidget> {
                     child: ElevatedButton(
                       onPressed: _isLoading ? null : _submitMood,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: MoodEntry.getColor(_selectedMood!).withOpacity(0.2),
+                        backgroundColor: MoodEntry.getColor(
+                          _selectedMood!,
+                        ).withOpacity(0.2),
                         elevation: 0,
                         foregroundColor: MoodEntry.getColor(_selectedMood!),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
-                      child: _isLoading 
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) 
-                          : const Text("Check-in ngay"),
+                      child:
+                          _isLoading
+                              ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                              : const Text(
+                                "Check-in ngay",
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
                     ),
                   ),
                 ).animate().slideY(begin: 0.5, end: 0),
             ],
           ),
         ).animate().fadeIn(delay: 200.ms).moveY(begin: 20, end: 0);
-      }
+      },
     );
   }
 }

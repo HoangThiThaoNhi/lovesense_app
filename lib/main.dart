@@ -3,12 +3,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'screens/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/main_screen.dart';
+import 'services/ai_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,14 +20,29 @@ void main() async {
     );
     // Ensure session persists across reloads (Critical for Web)
     await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
-  } catch (e) {
-    debugPrint(
-      "Firebase Initialization Failed: $e",
+
+    // Enable Firestore Persistence (Web & Mobile)
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
     );
+    // For Web specifically, sometimes enablePersistence() is needed explicitly if settings don't catch it
+    // But settings style is modern. Let's start with this.
+    // Actually, explicit enablePersistence is often safer for legacy/hybrid support.
+    try {
+      await FirebaseFirestore.instance.enablePersistence(
+        const PersistenceSettings(synchronizeTabs: true),
+      );
+    } catch (_) {} // Ignore if already enabled or platform mismatch
+  } catch (e) {
+    debugPrint("Firebase Initialization Failed: $e");
   }
-  
+
   final prefs = await SharedPreferences.getInstance();
   final onboardingCompleted = prefs.getBool('onboarding_completed') ?? false;
+
+  // Initialize AI Service
+  await AIService().init();
 
   runApp(MyApp(onboardingCompleted: onboardingCompleted));
 }
@@ -64,5 +81,3 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-
-

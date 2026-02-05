@@ -17,33 +17,46 @@ class _ProfileTabState extends State<ProfileTab> {
   // Toggles
   bool _dailyReminder = true;
   bool _aiSuggestions = true;
-  
+
+  late Stream<UserModel?> _userStream;
+
+  @override
+  void initState() {
+    super.initState();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      _userStream = AuthService().getUserStream(uid);
+    } else {
+      _userStream = Stream.value(null);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return const SizedBox();
 
     return StreamBuilder<UserModel?>(
-      stream: AuthService().getUserStream(user.uid),
+      stream: _userStream,
       builder: (context, snapshot) {
-         if (snapshot.connectionState == ConnectionState.waiting) {
-           return const Scaffold(
-             backgroundColor: Color(0xFFFAFAFA),
-             body: Center(child: CircularProgressIndicator()),
-           );
-         }
-         
-         if (snapshot.hasError) {
-           return Scaffold(
-             backgroundColor: Color(0xFFFAFAFA),
-             body: Center(child: Text('Lỗi tải dữ liệu: ${snapshot.error}')),
-           );
-         }
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            backgroundColor: Color(0xFFFAFAFA),
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
 
-         final userModel = snapshot.data;
-         final name = userModel?.name ?? 'Người dùng';
-         final email = userModel?.email ?? user.email ?? '';
-         final photoUrl = userModel?.photoUrl;
+        if (snapshot.hasError) {
+          return Scaffold(
+            backgroundColor: Color(0xFFFAFAFA),
+            body: Center(child: Text('Lỗi tải dữ liệu: ${snapshot.error}')),
+          );
+        }
+
+        final userModel = snapshot.data;
+        final name = userModel?.name ?? 'Người dùng';
+        final email = userModel?.email ?? user.email ?? '';
+        final photoUrl = userModel?.photoUrl;
 
         return Scaffold(
           backgroundColor: const Color(0xFFFAFAFA),
@@ -56,49 +69,88 @@ class _ProfileTabState extends State<ProfileTab> {
                   // Header
                   _buildHeader(name, email, photoUrl),
                   const SizedBox(height: 32),
-                  
+
                   // Mode Management
                   Text(
                     'Chế độ sử dụng',
-                    style: GoogleFonts.montserrat(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: GoogleFonts.montserrat(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
-                        _buildModeCard('Cá nhân', Icons.person, Colors.blue, isActive: true),
+                        _buildModeCard(
+                          'Cá nhân',
+                          Icons.person,
+                          Colors.blue,
+                          isActive: true,
+                        ),
                         const SizedBox(width: 12),
-                        _buildModeCard('Cặp đôi', Icons.favorite, Colors.pink, isActive: false),
+                        _buildModeCard(
+                          'Cặp đôi',
+                          Icons.favorite,
+                          Colors.pink,
+                          isActive: false,
+                        ),
                         const SizedBox(width: 12),
-                        _buildModeCard('Sáng tạo', Icons.brush, Colors.orange, isActive: false),
+                        _buildModeCard(
+                          'Sáng tạo',
+                          Icons.brush,
+                          Colors.orange,
+                          isActive: false,
+                        ),
                       ],
                     ),
                   ).animate().fadeIn().moveX(begin: 20, end: 0),
-                  
+
                   const SizedBox(height: 32),
-                  
+
                   // Settings Groups
                   _buildSectionTitle('Cài đặt cá nhân'),
                   _buildSettingsCard([
-                    _buildSwitchTile('Nhắc nhở check-in mỗi ngày', _dailyReminder, (val) => setState(() => _dailyReminder = val)),
-                    _buildSwitchTile('Gợi ý từ AI Coach', _aiSuggestions, (val) => setState(() => _aiSuggestions = val)),
+                    _buildSwitchTile(
+                      'Nhắc nhở check-in mỗi ngày',
+                      _dailyReminder,
+                      (val) => setState(() => _dailyReminder = val),
+                    ),
+                    _buildSwitchTile(
+                      'Gợi ý từ AI Coach',
+                      _aiSuggestions,
+                      (val) => setState(() => _aiSuggestions = val),
+                    ),
                   ]),
-                  
+
                   const SizedBox(height: 24),
                   _buildSectionTitle('Tài khoản & Bảo mật'),
                   _buildSettingsCard([
                     _buildActionTile('Đổi mật khẩu', Icons.lock_outline),
-                    _buildActionTile('Quyền riêng tư dữ liệu', Icons.privacy_tip_outlined),
-                    _buildActionTile('Đăng xuất', Icons.logout, isDestructive: true),
+                    _buildActionTile(
+                      'Quyền riêng tư dữ liệu',
+                      Icons.privacy_tip_outlined,
+                    ),
+                    _buildActionTile(
+                      'Đăng xuất',
+                      Icons.logout,
+                      isDestructive: true,
+                    ),
                   ]),
-                  
+
                   const SizedBox(height: 24),
                   _buildSectionTitle('Hỗ trợ'),
                   _buildSettingsCard([
-                    _buildActionTile('Cộng đồng & Diễn đàn', Icons.forum_outlined),
+                    _buildActionTile(
+                      'Cộng đồng & Diễn đàn',
+                      Icons.forum_outlined,
+                    ),
                     _buildActionTile('Gửi phản hồi', Icons.feedback_outlined),
-                    _buildActionTile('Điều khoản & Chính sách', Icons.description_outlined),
+                    _buildActionTile(
+                      'Điều khoản & Chính sách',
+                      Icons.description_outlined,
+                    ),
                   ]),
 
                   const SizedBox(height: 40),
@@ -107,21 +159,22 @@ class _ProfileTabState extends State<ProfileTab> {
             ),
           ),
         );
-      }
+      },
     );
   }
 
   Widget _buildHeader(String name, String email, String? photoUrl) {
     // Mask email
-    final maskedEmail = email.isNotEmpty && email.contains('@') 
-        ? email.replaceRange(2, email.indexOf('@'), '****')
-        : email;
+    final maskedEmail =
+        email.isNotEmpty && email.contains('@')
+            ? email.replaceRange(2, email.indexOf('@'), '****')
+            : email;
 
     return Row(
       children: [
         Stack(
           children: [
-             Container(
+            Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(color: const Color(0xFFFF4081), width: 3),
@@ -129,12 +182,14 @@ class _ProfileTabState extends State<ProfileTab> {
               child: CircleAvatar(
                 radius: 40,
                 backgroundColor: Colors.grey[200],
-                backgroundImage: photoUrl != null && photoUrl.isNotEmpty
-                    ? NetworkImage(photoUrl)
-                    : null,
-                child: (photoUrl == null || photoUrl.isEmpty)
-                    ? const Icon(Icons.person, size: 40, color: Colors.grey)
-                    : null,
+                backgroundImage:
+                    photoUrl != null && photoUrl.isNotEmpty
+                        ? NetworkImage(photoUrl)
+                        : null,
+                child:
+                    (photoUrl == null || photoUrl.isEmpty)
+                        ? const Icon(Icons.person, size: 40, color: Colors.grey)
+                        : null,
               ),
             ),
             Positioned(
@@ -142,10 +197,13 @@ class _ProfileTabState extends State<ProfileTab> {
               right: 0,
               child: Container(
                 padding: const EdgeInsets.all(6),
-                decoration: const BoxDecoration(color: Colors.blueAccent, shape: BoxShape.circle),
+                decoration: const BoxDecoration(
+                  color: Colors.blueAccent,
+                  shape: BoxShape.circle,
+                ),
                 child: const Icon(Icons.edit, size: 14, color: Colors.white),
               ),
-            )
+            ),
           ],
         ),
         const SizedBox(width: 20),
@@ -154,14 +212,17 @@ class _ProfileTabState extends State<ProfileTab> {
           children: [
             Text(
               name,
-              style: GoogleFonts.montserrat(fontSize: 22, fontWeight: FontWeight.bold),
+              style: GoogleFonts.montserrat(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               maskedEmail,
               style: GoogleFonts.inter(color: Colors.grey[600]),
             ),
-             const SizedBox(height: 8),
+            const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
@@ -171,7 +232,11 @@ class _ProfileTabState extends State<ProfileTab> {
               ),
               child: Text(
                 'Đang ở chế độ Cá nhân',
-                style: GoogleFonts.inter(fontSize: 10, color: Colors.blue[800], fontWeight: FontWeight.w600),
+                style: GoogleFonts.inter(
+                  fontSize: 10,
+                  color: Colors.blue[800],
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],
@@ -180,15 +245,31 @@ class _ProfileTabState extends State<ProfileTab> {
     ).animate().fadeIn().moveY(begin: -20, end: 0);
   }
 
-  Widget _buildModeCard(String title, IconData icon, Color color, {required bool isActive}) {
+  Widget _buildModeCard(
+    String title,
+    IconData icon,
+    Color color, {
+    required bool isActive,
+  }) {
     return Container(
       width: 140,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isActive ? color : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isActive ? Colors.transparent : Colors.grey[300]!),
-        boxShadow: isActive ? [BoxShadow(color: color.withOpacity(0.4), blurRadius: 10, offset: const Offset(0, 4))] : [],
+        border: Border.all(
+          color: isActive ? Colors.transparent : Colors.grey[300]!,
+        ),
+        boxShadow:
+            isActive
+                ? [
+                  BoxShadow(
+                    color: color.withOpacity(0.4),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+                : [],
       ),
       child: Column(
         children: [
@@ -211,13 +292,17 @@ class _ProfileTabState extends State<ProfileTab> {
       ),
     );
   }
-  
+
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Text(
         title,
-        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+        style: GoogleFonts.inter(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: Colors.grey[700],
+        ),
       ),
     );
   }
@@ -227,7 +312,7 @@ class _ProfileTabState extends State<ProfileTab> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-         boxShadow: [
+        boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.02),
             blurRadius: 10,
@@ -255,8 +340,12 @@ class _ProfileTabState extends State<ProfileTab> {
       ),
     );
   }
-  
-  Widget _buildActionTile(String title, IconData icon, {bool isDestructive = false}) {
+
+  Widget _buildActionTile(
+    String title,
+    IconData icon, {
+    bool isDestructive = false,
+  }) {
     return InkWell(
       onTap: () async {
         if (title == 'Đăng xuất') {
@@ -268,7 +357,11 @@ class _ProfileTabState extends State<ProfileTab> {
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            Icon(icon, size: 20, color: isDestructive ? Colors.red : Colors.grey[700]),
+            Icon(
+              icon,
+              size: 20,
+              color: isDestructive ? Colors.red : Colors.grey[700],
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -276,7 +369,8 @@ class _ProfileTabState extends State<ProfileTab> {
                 style: GoogleFonts.inter(
                   fontSize: 14,
                   color: isDestructive ? Colors.red : Colors.black87,
-                  fontWeight: isDestructive ? FontWeight.w600 : FontWeight.normal,
+                  fontWeight:
+                      isDestructive ? FontWeight.w600 : FontWeight.normal,
                 ),
               ),
             ),

@@ -15,7 +15,6 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
-  bool _isLoading = true;
 
   @override
   void initState() {
@@ -25,10 +24,11 @@ class _MainScreenState extends State<MainScreen> {
 
   Future<void> _loadUnsavedIndex() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _selectedIndex = prefs.getInt('last_tab_index') ?? 0;
-      _isLoading = false;
-    });
+    if (mounted) {
+      setState(() {
+        _selectedIndex = prefs.getInt('last_tab_index') ?? 0;
+      });
+    }
   }
 
   late final List<Widget> _screens = [
@@ -47,14 +47,9 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
+    // Removed blocking loading state for faster perceived load
     return Scaffold(
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: _screens,
-      ),
+      body: IndexedStack(index: _selectedIndex, children: _screens),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           boxShadow: [

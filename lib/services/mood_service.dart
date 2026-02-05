@@ -1,4 +1,3 @@
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/mood_model.dart';
@@ -21,44 +20,54 @@ class MoodService {
 
   // Check Eligibility (Synchonous - Fast)
   Map<String, dynamic> checkEligibilityLocal(DailyMoodSummary? summary) {
-     final currentSlot = getCurrentTimeSlot();
-     final hour = DateTime.now().hour;
+    final currentSlot = getCurrentTimeSlot();
+    final hour = DateTime.now().hour;
 
-     // Rule: strict start time
-     if (hour < 5) {
-       return {'allowed': false, 'reason': 'Chưa đến giờ điểm danh sáng (05:00)'};
-     }
+    // Rule: strict start time
+    if (hour < 5) {
+      return {
+        'allowed': false,
+        'reason': 'Chưa đến giờ điểm danh sáng (05:00)',
+      };
+    }
 
-     if (summary == null) {
-       return {'allowed': true}; // No data for today yet, and it's past 5am, so valid.
-     }
+    if (summary == null) {
+      return {
+        'allowed': true,
+      }; // No data for today yet, and it's past 5am, so valid.
+    }
 
-     // Rule 2: Max 3 edits
-     if (summary.editCount >= 3) {
-       return {'allowed': false, 'reason': 'Bạn đã dùng hết 3 lượt check-in hôm nay'};
-     }
+    // Rule 2: Max 3 edits
+    if (summary.editCount >= 3) {
+      return {
+        'allowed': false,
+        'reason': 'Bạn đã dùng hết 3 lượt check-in hôm nay',
+      };
+    }
 
-     // Rule 3: One per slot
-     if (summary.slotsUsed.contains(currentSlot)) {
-        // Find next slot name
-        String nextSlotName = '';
-        if (currentSlot == TimeSlot.morning) nextSlotName = 'Buổi chiều (12:00)';
-        if (currentSlot == TimeSlot.afternoon) nextSlotName = 'Buổi tối (18:00)';
-        if (currentSlot == TimeSlot.evening) nextSlotName = 'Ngày mai';
+    // Rule 3: One per slot
+    if (summary.slotsUsed.contains(currentSlot)) {
+      // Find next slot name
+      String nextSlotName = '';
+      if (currentSlot == TimeSlot.morning) nextSlotName = 'Buổi chiều (12:00)';
+      if (currentSlot == TimeSlot.afternoon) nextSlotName = 'Buổi tối (18:00)';
+      if (currentSlot == TimeSlot.evening) nextSlotName = 'Ngày mai';
 
-        return {
-          'allowed': false, 
-          'reason': 'Bạn đã check-in ${currentSlot.label} rồi. Hẹn bạn vào $nextSlotName nhé!',
-          'currentMood': summary.currentMood
-        };
-     }
-     
-     return {'allowed': true};
+      return {
+        'allowed': false,
+        'reason':
+            'Bạn đã check-in ${currentSlot.label} rồi. Hẹn bạn vào $nextSlotName nhé!',
+        'currentMood': summary.currentMood,
+      };
+    }
+
+    return {'allowed': true};
   }
 
   // Check Eligibility (Async - Deprecated or for double check)
   Future<Map<String, dynamic>> checkEligibility() async {
-    if (_currentUserId.isEmpty) return {'allowed': false, 'reason': 'Chưa đăng nhập'};
+    if (_currentUserId.isEmpty)
+      return {'allowed': false, 'reason': 'Chưa đăng nhập'};
 
     final docRef = _firestore
         .collection('users')
@@ -67,15 +76,18 @@ class MoodService {
         .doc(_todayDocId);
 
     final snapshot = await docRef.get();
-    
+
     // Default valid state if no data yet
     if (!snapshot.exists) {
-       final hour = DateTime.now().hour;
-       // Prevent editing before 5AM? (Rule 3 says Morning starts 5:00)
-       if (hour < 5) {
-         return {'allowed': false, 'reason': 'Chưa đến giờ điểm danh sáng (05:00)'};
-       }
-       return {'allowed': true};
+      final hour = DateTime.now().hour;
+      // Prevent editing before 5AM? (Rule 3 says Morning starts 5:00)
+      if (hour < 5) {
+        return {
+          'allowed': false,
+          'reason': 'Chưa đến giờ điểm danh sáng (05:00)',
+        };
+      }
+      return {'allowed': true};
     }
 
     final summary = DailyMoodSummary.fromSnapshot(snapshot);
@@ -83,28 +95,35 @@ class MoodService {
 
     // Rule 2: Max 3 edits
     if (summary.editCount >= 3) {
-      return {'allowed': false, 'reason': 'Bạn đã dùng hết 3 lượt check-in hôm nay'};
+      return {
+        'allowed': false,
+        'reason': 'Bạn đã dùng hết 3 lượt check-in hôm nay',
+      };
     }
 
     // Rule 3: One per slot
     if (summary.slotsUsed.contains(currentSlot)) {
-       // Find next slot name
-       String nextSlotName = '';
-       if (currentSlot == TimeSlot.morning) nextSlotName = 'Buổi chiều (12:00)';
-       if (currentSlot == TimeSlot.afternoon) nextSlotName = 'Buổi tối (18:00)';
-       if (currentSlot == TimeSlot.evening) nextSlotName = 'Ngày mai';
+      // Find next slot name
+      String nextSlotName = '';
+      if (currentSlot == TimeSlot.morning) nextSlotName = 'Buổi chiều (12:00)';
+      if (currentSlot == TimeSlot.afternoon) nextSlotName = 'Buổi tối (18:00)';
+      if (currentSlot == TimeSlot.evening) nextSlotName = 'Ngày mai';
 
-       return {
-         'allowed': false, 
-         'reason': 'Bạn đã check-in ${currentSlot.label} rồi. Hẹn bạn vào $nextSlotName nhé!',
-         'currentMood': summary.currentMood // To show current state
-       };
+      return {
+        'allowed': false,
+        'reason':
+            'Bạn đã check-in ${currentSlot.label} rồi. Hẹn bạn vào $nextSlotName nhé!',
+        'currentMood': summary.currentMood, // To show current state
+      };
     }
-    
+
     // Initial check regarding strict hours (e.g. 00:00 - 05:00 not allowed)
     final hour = DateTime.now().hour;
     if (hour < 5) {
-       return {'allowed': false, 'reason': 'Chưa đến giờ điểm danh sáng (05:00)'};
+      return {
+        'allowed': false,
+        'reason': 'Chưa đến giờ điểm danh sáng (05:00)',
+      };
     }
 
     return {'allowed': true};
@@ -135,13 +154,30 @@ class MoodService {
 
     // 1. Pre-transaction validation (Read-only) to fail fast and avoid "Transaction Aborted" errors
     // This fixes the "Dart exception thrown from converted Future" on Web
-    // 1. Pre-validation
-    final snapshotPre = await userMoodRef.get();
+    // 1. Pre-transaction validation (Read-only)
+    // Fix: Offline Fallback
     DailyMoodSummary? summaryPre;
-    if (snapshotPre.exists) {
-       summaryPre = DailyMoodSummary.fromSnapshot(snapshotPre);
+    DocumentSnapshot<Map<String, dynamic>>? snapshotPre;
+
+    try {
+      // Try Server first (or default)
+      snapshotPre = await userMoodRef.get();
+    } catch (e) {
+      try {
+        // Fallback to Cache
+        snapshotPre = await userMoodRef.get(
+          const GetOptions(source: Source.cache),
+        );
+      } catch (_) {
+        // Totally offline and no cache? Assume empty/new day.
+        summaryPre = null;
+      }
     }
-    
+
+    if (snapshotPre != null && snapshotPre.exists) {
+      summaryPre = DailyMoodSummary.fromSnapshot(snapshotPre);
+    }
+
     // Use the sync check we already wrote
     final eligibility = checkEligibilityLocal(summaryPre);
     if (eligibility['allowed'] == false) {
@@ -154,11 +190,12 @@ class MoodService {
     // 2. Flexible Write (Batch - Supports Offline/Flaky Network)
     // We switched from runTransaction (Strict) to Batch to avoid "unavailable" errors
     final batch = _firestore.batch();
-    
+
     // We already have summaryPre from step 1.
     // If it was null (new day), create it.
     DailyMoodSummary summary;
-    if (summaryPre == null || !snapshotPre.exists) {
+    // Fix lint: snapshotPre can be null now
+    if (summaryPre == null || snapshotPre?.exists != true) {
       summary = DailyMoodSummary(id: todayId);
     } else {
       summary = summaryPre;
@@ -166,13 +203,19 @@ class MoodService {
 
     // Rules Re-verification (Soft check)
     if (summary.editCount >= 3) throw Exception("Đã hết lượt check-in hôm nay");
-    if (summary.slotsUsed.contains(currentSlot)) throw Exception("Khung giờ này đã check-in rồi");
+    if (summary.slotsUsed.contains(currentSlot))
+      throw Exception("Khung giờ này đã check-in rồi");
+
+    // Generate Quote
+    final quote = MoodEntry.getRandomQuote(mood);
 
     // Update Summary
-    final updatedSlots = List<TimeSlot>.from(summary.slotsUsed)..add(currentSlot);
+    final updatedSlots = List<TimeSlot>.from(summary.slotsUsed)
+      ..add(currentSlot);
     final updatedSummary = DailyMoodSummary(
       id: todayId,
       currentMood: mood,
+      quote: quote, // Save the quote
       editCount: summary.editCount + 1,
       slotsUsed: updatedSlots,
       lastUpdatedAt: now,
@@ -188,8 +231,9 @@ class MoodService {
       timeSlot: currentSlot,
       timestamp: now,
       note: note,
+      quote: quote, // Save the quote in history too
     );
-    
+
     batch.set(historyRef, entry.toJson());
 
     await batch.commit();
