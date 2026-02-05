@@ -5,6 +5,7 @@ class UserModel {
   final String role; // 'single', 'couple', 'creator', 'admin'
   final DateTime createdAt;
   final String status;
+  final String? photoUrl;
 
   UserModel({
     required this.uid,
@@ -13,6 +14,7 @@ class UserModel {
     this.role = 'single',
     required this.createdAt,
     this.status = 'active',
+    this.photoUrl,
   });
 
   Map<String, dynamic> toJson() {
@@ -23,6 +25,7 @@ class UserModel {
       'role': role,
       'createdAt': createdAt.toIso8601String(),
       'status': status,
+      'photoUrl': photoUrl,
     };
   }
 
@@ -36,6 +39,7 @@ class UserModel {
           ? DateTime.parse(json['createdAt'])
           : DateTime.now(),
       status: json['status'] ?? 'active',
+      photoUrl: json['photoUrl'],
     );
   }
 }

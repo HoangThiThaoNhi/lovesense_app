@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'home/home_tab.dart';
 import 'journey/journey_tab.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'profile/profile_tab.dart';
 
 class MainScreen extends StatefulWidget {
@@ -14,23 +15,46 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
+  bool _isLoading = true;
 
-  final List<Widget> _screens = [
-    const HomeTab(),
+  @override
+  void initState() {
+    super.initState();
+    _loadUnsavedIndex();
+  }
+
+  Future<void> _loadUnsavedIndex() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _selectedIndex = prefs.getInt('last_tab_index') ?? 0;
+      _isLoading = false;
+    });
+  }
+
+  late final List<Widget> _screens = [
+    HomeTab(onNavigateToProfile: () => _onItemTapped(2)),
     const JourneyTab(),
     const ProfileTab(),
   ];
 
-  void _onItemTapped(int index) {
+  void _onItemTapped(int index) async {
     setState(() {
       _selectedIndex = index;
     });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('last_tab_index', index);
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     return Scaffold(
-      body: _screens[_selectedIndex],
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _screens,
+      ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           boxShadow: [

@@ -94,4 +94,18 @@ class AuthService {
   Future<void> sendPasswordResetEmail({required String email}) async {
     await _auth.sendPasswordResetEmail(email: email);
   }
+
+  // Get User Stream using user_model
+  Stream<UserModel?> getUserStream(String uid) {
+    return _firestore
+        .collection('users')
+        .doc(uid)
+        .snapshots()
+        .map((snapshot) {
+      if (snapshot.exists && snapshot.data() != null) {
+        return UserModel.fromJson(snapshot.data()!);
+      }
+      return null;
+    });
+  }
 }

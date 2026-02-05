@@ -16,16 +16,23 @@ void main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    // Ensure session persists across reloads (Critical for Web)
+    await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
   } catch (e) {
     debugPrint(
-      "Firebase Initialization Failed (Did you add config files?): $e",
+      "Firebase Initialization Failed: $e",
     );
   }
-  runApp(const MyApp());
+  
+  final prefs = await SharedPreferences.getInstance();
+  final onboardingCompleted = prefs.getBool('onboarding_completed') ?? false;
+
+  runApp(MyApp(onboardingCompleted: onboardingCompleted));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final bool onboardingCompleted;
+  const MyApp({super.key, required this.onboardingCompleted});
 
   @override
   Widget build(BuildContext context) {
@@ -44,24 +51,11 @@ class MyApp extends StatelessWidget {
             return const SplashScreen();
           }
           if (snapshot.hasData) {
-            // Check Onboarding Status
-            return FutureBuilder<bool>(
-              future: SharedPreferences.getInstance().then(
-                (prefs) => prefs.getBool('onboarding_completed') ?? false,
-              ),
-              builder: (context, onboardingSnapshot) {
-                if (onboardingSnapshot.connectionState ==
-                    ConnectionState.waiting) {
-                  return const Scaffold(
-                    body: Center(child: CircularProgressIndicator()),
-                  );
-                }
-                if (onboardingSnapshot.data == true) {
-                  return const MainScreen();
-                }
-                return const OnboardingScreen();
-              },
-            );
+            // Instant check! No FutureBuilder delay.
+            if (onboardingCompleted) {
+              return const MainScreen();
+            }
+            return const OnboardingScreen();
           }
           // Người dùng chưa đăng nhập
           return const LoginScreen();

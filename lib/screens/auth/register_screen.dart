@@ -114,17 +114,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     try {
       // Configure OTP (Static method)
+      // Configure OTP
       EmailOTP.config(
-        appEmail: "verify@lovesense.app",
         appName: "Lovesense",
-        // userEmail: _emailController.text.trim(), // Replaced by sendOTP parameter in newer version or handled internally if config sets global state?
-        // Actually looking at source for 3.1.0: config sets _appEmail, _appName. 
-        // userEmail is NOT in config in 3.1.0 based on file read.
-        // It is passed in sendOTP logic if we look closely at lines 151.
-        // Wait, line 81: static config({ ... appEmail ... })
-        // It sets static variables.
-        otpLength: 6,
-        otpType: OTPType.numeric, // Changed from digits to numeric
+        otpType: OTPType.numeric,
+        emailTheme: EmailTheme.v1,
       );
 
       // Send OTP (Static method)

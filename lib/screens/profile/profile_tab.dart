@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import '../../models/user_model.dart';
+import '../../services/auth_service.dart';
 
 class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
@@ -12,83 +14,108 @@ class ProfileTab extends StatefulWidget {
 }
 
 class _ProfileTabState extends State<ProfileTab> {
-  final User? _currentUser = FirebaseAuth.instance.currentUser;
-  
   // Toggles
   bool _dailyReminder = true;
   bool _aiSuggestions = true;
   
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              _buildHeader(),
-              const SizedBox(height: 32),
-              
-              // Mode Management
-              Text(
-                'Chế độ sử dụng',
-                style: GoogleFonts.montserrat(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _buildModeCard('Cá nhân', Icons.person, Colors.blue, isActive: true),
-                    const SizedBox(width: 12),
-                    _buildModeCard('Cặp đôi', Icons.favorite, Colors.pink, isActive: false),
-                    const SizedBox(width: 12),
-                    _buildModeCard('Sáng tạo', Icons.brush, Colors.orange, isActive: false),
-                  ],
-                ),
-              ).animate().fadeIn().moveX(begin: 20, end: 0),
-              
-              const SizedBox(height: 32),
-              
-              // Settings Groups
-              _buildSectionTitle('Cài đặt cá nhân'),
-              _buildSettingsCard([
-                _buildSwitchTile('Nhắc nhở check-in mỗi ngày', _dailyReminder, (val) => setState(() => _dailyReminder = val)),
-                _buildSwitchTile('Gợi ý từ AI Coach', _aiSuggestions, (val) => setState(() => _aiSuggestions = val)),
-              ]),
-              
-              const SizedBox(height: 24),
-              _buildSectionTitle('Tài khoản & Bảo mật'),
-              _buildSettingsCard([
-                _buildActionTile('Đổi mật khẩu', Icons.lock_outline),
-                _buildActionTile('Quyền riêng tư dữ liệu', Icons.privacy_tip_outlined),
-                _buildActionTile('Đăng xuất', Icons.logout, isDestructive: true),
-              ]),
-              
-              const SizedBox(height: 24),
-              _buildSectionTitle('Hỗ trợ'),
-              _buildSettingsCard([
-                _buildActionTile('Cộng đồng & Diễn đàn', Icons.forum_outlined),
-                _buildActionTile('Gửi phản hồi', Icons.feedback_outlined),
-                _buildActionTile('Điều khoản & Chính sách', Icons.description_outlined),
-              ]),
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return const SizedBox();
 
-              const SizedBox(height: 40),
-            ],
+    return StreamBuilder<UserModel?>(
+      stream: AuthService().getUserStream(user.uid),
+      builder: (context, snapshot) {
+         if (snapshot.connectionState == ConnectionState.waiting) {
+           return const Scaffold(
+             backgroundColor: Color(0xFFFAFAFA),
+             body: Center(child: CircularProgressIndicator()),
+           );
+         }
+         
+         if (snapshot.hasError) {
+           return Scaffold(
+             backgroundColor: Color(0xFFFAFAFA),
+             body: Center(child: Text('Lỗi tải dữ liệu: ${snapshot.error}')),
+           );
+         }
+
+         final userModel = snapshot.data;
+         final name = userModel?.name ?? 'Người dùng';
+         final email = userModel?.email ?? user.email ?? '';
+         final photoUrl = userModel?.photoUrl;
+
+        return Scaffold(
+          backgroundColor: const Color(0xFFFAFAFA),
+          body: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header
+                  _buildHeader(name, email, photoUrl),
+                  const SizedBox(height: 32),
+                  
+                  // Mode Management
+                  Text(
+                    'Chế độ sử dụng',
+                    style: GoogleFonts.montserrat(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildModeCard('Cá nhân', Icons.person, Colors.blue, isActive: true),
+                        const SizedBox(width: 12),
+                        _buildModeCard('Cặp đôi', Icons.favorite, Colors.pink, isActive: false),
+                        const SizedBox(width: 12),
+                        _buildModeCard('Sáng tạo', Icons.brush, Colors.orange, isActive: false),
+                      ],
+                    ),
+                  ).animate().fadeIn().moveX(begin: 20, end: 0),
+                  
+                  const SizedBox(height: 32),
+                  
+                  // Settings Groups
+                  _buildSectionTitle('Cài đặt cá nhân'),
+                  _buildSettingsCard([
+                    _buildSwitchTile('Nhắc nhở check-in mỗi ngày', _dailyReminder, (val) => setState(() => _dailyReminder = val)),
+                    _buildSwitchTile('Gợi ý từ AI Coach', _aiSuggestions, (val) => setState(() => _aiSuggestions = val)),
+                  ]),
+                  
+                  const SizedBox(height: 24),
+                  _buildSectionTitle('Tài khoản & Bảo mật'),
+                  _buildSettingsCard([
+                    _buildActionTile('Đổi mật khẩu', Icons.lock_outline),
+                    _buildActionTile('Quyền riêng tư dữ liệu', Icons.privacy_tip_outlined),
+                    _buildActionTile('Đăng xuất', Icons.logout, isDestructive: true),
+                  ]),
+                  
+                  const SizedBox(height: 24),
+                  _buildSectionTitle('Hỗ trợ'),
+                  _buildSettingsCard([
+                    _buildActionTile('Cộng đồng & Diễn đàn', Icons.forum_outlined),
+                    _buildActionTile('Gửi phản hồi', Icons.feedback_outlined),
+                    _buildActionTile('Điều khoản & Chính sách', Icons.description_outlined),
+                  ]),
+
+                  const SizedBox(height: 40),
+                ],
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      }
     );
   }
 
-  Widget _buildHeader() {
-    final String name = _currentUser?.displayName ?? 'Người dùng mới';
-    final String email = _currentUser?.email ?? 'example@email.com';
+  Widget _buildHeader(String name, String email, String? photoUrl) {
     // Mask email
-    final maskedEmail = email.replaceRange(2, email.indexOf('@'), '****');
+    final maskedEmail = email.isNotEmpty && email.contains('@') 
+        ? email.replaceRange(2, email.indexOf('@'), '****')
+        : email;
 
     return Row(
       children: [
@@ -99,9 +126,15 @@ class _ProfileTabState extends State<ProfileTab> {
                 shape: BoxShape.circle,
                 border: Border.all(color: const Color(0xFFFF4081), width: 3),
               ),
-              child: const CircleAvatar(
+              child: CircleAvatar(
                 radius: 40,
-                backgroundImage: NetworkImage('https://i.pravatar.cc/150?img=32'),
+                backgroundColor: Colors.grey[200],
+                backgroundImage: photoUrl != null && photoUrl.isNotEmpty
+                    ? NetworkImage(photoUrl)
+                    : null,
+                child: (photoUrl == null || photoUrl.isEmpty)
+                    ? const Icon(Icons.person, size: 40, color: Colors.grey)
+                    : null,
               ),
             ),
             Positioned(
@@ -225,7 +258,12 @@ class _ProfileTabState extends State<ProfileTab> {
   
   Widget _buildActionTile(String title, IconData icon, {bool isDestructive = false}) {
     return InkWell(
-      onTap: () {},
+      onTap: () async {
+        if (title == 'Đăng xuất') {
+          await FirebaseAuth.instance.signOut();
+          // StreamBuilder in main.dart will handle navigation to LoginScreen
+        }
+      },
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(

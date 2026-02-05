@@ -7,7 +7,7 @@ import '../services/auth_service.dart';
 import 'auth/login_screen.dart';
 // import '../main.dart'; // Circular dependency if not careful, but needed for LandingPage
 // Actually, let's just use the widget directly if possible, or correct import path
-import '../main.dart';
+import 'main_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -20,51 +20,11 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _navigateToNextScreen();
+    // Navigation is handled by main.dart StreamBuilder
   }
 
-  void _navigateToNextScreen() async {
-    // Wait for animation
-    await Future.delayed(const Duration(seconds: 3));
+  // Logic removed to prevent conflict with Main.dart StreamBuilder
 
-    if (!mounted) return;
-
-    // Check if Firebase was initialized successfully (i.e. google-services.json exists)
-    if (Firebase.apps.isEmpty) {
-      debugPrint("Firebase not initialized. Exploring to Login Screen.");
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
-        );
-      }
-      return;
-    }
-
-    try {
-      // Check Auth State
-      final user = AuthService().currentUser;
-
-      if (user != null) {
-        // User is logged in -> Home
-        if (mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const LandingPage()),
-          );
-        }
-      } else {
-        throw Exception("Not logged in");
-      }
-    } catch (e) {
-      // User not logged in OR Firebase authentication failed (e.g. config missing)
-      // Fallback -> Login Screen
-      debugPrint("Navigation Fallback: $e");
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
-        );
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
