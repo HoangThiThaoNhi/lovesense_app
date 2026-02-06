@@ -4,6 +4,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'firebase_options.dart';
 import 'screens/admin_web/admin_scaffold.dart';
 import 'screens/admin_web/admin_views.dart';
+import 'screens/admin_web/admin_video_view.dart';
+import 'screens/admin_web/admin_quiz_view.dart';
+import 'screens/admin_web/admin_users_view.dart';
+import 'screens/admin_web/admin_article_view.dart';
+import 'screens/admin_web/admin_course_view.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -49,14 +54,20 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
   final List<Widget> _views = const [
     AdminDashboardView(),
     AdminUsersView(),
-    AdminContentView(),
+    AdminVideoView(),
+    AdminArticleView(),
+    AdminCourseView(),
+    AdminQuizView(),
     Center(child: Text("Setting Settings Placeholder")),
   ];
 
   final List<String> _titles = const [
     'Dashboard',
     'Quản lý Người dùng',
-    'Quản lý Nội dung',
+    'Quản lý Video',
+    'Quản lý Bài viết',
+    'Quản lý Khóa học',
+    'Quản lý Quiz',
     'Cài đặt Hệ thống',
   ];
 

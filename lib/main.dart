@@ -29,11 +29,9 @@ void main() async {
     // For Web specifically, sometimes enablePersistence() is needed explicitly if settings don't catch it
     // But settings style is modern. Let's start with this.
     // Actually, explicit enablePersistence is often safer for legacy/hybrid support.
-    try {
-      await FirebaseFirestore.instance.enablePersistence(
-        const PersistenceSettings(synchronizeTabs: true),
-      );
-    } catch (_) {} // Ignore if already enabled or platform mismatch
+    // For Web specifically, settings API covers most cases now.
+    // If needed, synchronization can be added to Settings in newer FlutterFire versions, 
+    // but typically persistenceEnabled: true is enough for basic offline.
   } catch (e) {
     debugPrint("Firebase Initialization Failed: $e");
   }

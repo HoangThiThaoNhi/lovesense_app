@@ -151,130 +151,7 @@ class AdminDashboardView extends StatelessWidget {
   }
 }
 
-// --- USERS VIEW ---
-class AdminUsersView extends StatelessWidget {
-  const AdminUsersView({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-               Text('Danh sách người dùng', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.bold)),
-               // ElevatedButton.icon(onPressed: (){}, icon: const Icon(Icons.add), label: const Text('Thêm mới (Mock)'))
-            ],
-          ),
-          const SizedBox(height: 24),
-          
-          Expanded(
-            child: StreamBuilder<List<UserModel>>(
-              stream: AdminService().getUsersStream(),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) return Center(child: Text('Lỗi: ${snapshot.error}'));
-                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                
-                final users = snapshot.data ?? [];
-                if (users.isEmpty) return const Center(child: Text('Chưa có người dùng nào.'));
-
-                return SingleChildScrollView(
-                  scrollDirection: Axis.vertical,
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: DataTable(
-                      columns: const [
-                        DataColumn(label: Text('Email')),
-                        DataColumn(label: Text('Tên')),
-                        DataColumn(label: Text('Vai trò')),
-                        DataColumn(label: Text('Trạng thái')),
-                        DataColumn(label: Text('Hành động')),
-                      ],
-                      rows: users.map((user) {
-                        return DataRow(cells: [
-                          DataCell(Text(user.email)),
-                          DataCell(Row(children: [
-                            const CircleAvatar(radius: 12, child: Icon(Icons.person, size: 12)),
-                            const SizedBox(width: 8),
-                            Text(user.name)
-                          ])),
-                          DataCell(Container(
-                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                             decoration: BoxDecoration(
-                               color: _getRoleColor(user.role).withOpacity(0.1), 
-                               borderRadius: BorderRadius.circular(4)
-                             ),
-                             child: Text(user.role.toUpperCase(), style: TextStyle(color: _getRoleColor(user.role), fontWeight: FontWeight.bold, fontSize: 10)),
-                          )),
-                          DataCell(Text(user.status, style: TextStyle(color: user.status == 'active' ? Colors.green : Colors.red))),
-                          DataCell(Row(children: [
-                            IconButton(
-                              icon: const Icon(Icons.edit, size: 18), 
-                              onPressed: () => _showRoleDialog(context, user),
-                              tooltip: 'Sửa vai trò',
-                            ),
-                          ])),
-                        ]);
-                      }).toList(),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Color _getRoleColor(String role) {
-    switch (role) {
-      case 'creator': return Colors.purple;
-      case 'admin': return Colors.red;
-      case 'couple': return Colors.pink;
-      default: return Colors.blue;
-    }
-  }
-
-  void _showRoleDialog(BuildContext context, UserModel user) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Cập nhật vai trò cho ${user.name}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildRoleOption(context, user, 'User', 'single'),
-            _buildRoleOption(context, user, 'Creator', 'creator'),
-            _buildRoleOption(context, user, 'Admin', 'admin'),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRoleOption(BuildContext context, UserModel user, String label, String value) {
-    return ListTile(
-      title: Text(label),
-      leading: Radio<String>(
-        value: value,
-        groupValue: user.role,
-        onChanged: (val) {
-          AdminService().updateUserRole(user.uid, val!);
-          Navigator.pop(context);
-        },
-      ),
-    );
-  }
-}
+// --- USERS VIEW DEPRECATED MOVED TO admin_users_view.dart ---
 
 // --- CONTENT VIEW ---
 class AdminContentView extends StatelessWidget {
@@ -329,7 +206,7 @@ class AdminContentView extends StatelessWidget {
                       subtitle: Text('Danh mục: ${data['category']} • Views: ${data['views'] ?? 0}'),
                       trailing: IconButton(
                         icon: const Icon(Icons.delete, color: Colors.redAccent),
-                        onPressed: () => AdminService().deleteContent(id),
+                        onPressed: () => AdminService().deleteContent('contents', id),
                       ),
                     );
                   },
@@ -375,12 +252,15 @@ class AdminContentView extends StatelessWidget {
           ElevatedButton(
             onPressed: () {
               if (titleController.text.isNotEmpty) {
-                AdminService().addContent(
-                  title: titleController.text,
-                  description: descController.text,
-                  imageUrl: imgController.text,
-                  category: category,
-                );
+                AdminService().addContent({
+                  'title': titleController.text,
+                  'description': descController.text,
+                  'imageUrl': imgController.text,
+                  'category': category,
+                  'createdAt': DateTime.now().toIso8601String(),
+                  'status': 'published',
+                  'views': 0,
+                });
                 Navigator.pop(context);
               }
             },

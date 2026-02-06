@@ -63,9 +63,11 @@ class _AdminScaffoldState extends State<AdminScaffold> {
                 // Navigation Items
                 _buildNavItem(0, 'Dashboard', Icons.dashboard_outlined),
                 _buildNavItem(1, 'Người dùng', Icons.people_outline),
-                _buildNavItem(2, 'Nội dung', Icons.article_outlined),
-                // _buildNavItem(3, 'Cộng đồng', Icons.forum_outlined),
-                _buildNavItem(3, 'Cài đặt', Icons.settings_outlined),
+                _buildNavItem(2, 'Video', Icons.video_library_outlined),
+                _buildNavItem(3, 'Bài viết', Icons.article_outlined),
+                _buildNavItem(4, 'Khóa học', Icons.school_outlined),
+                _buildNavItem(5, 'Quiz', Icons.quiz_outlined),
+                _buildNavItem(6, 'Cài đặt', Icons.settings_outlined),
 
                 const Spacer(),
                 
@@ -91,12 +93,15 @@ class _AdminScaffoldState extends State<AdminScaffold> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        widget.title,
-                        style: GoogleFonts.montserrat(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
+                      Expanded(
+                        child: Text(
+                          widget.title,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.montserrat(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
                         ),
                       ),
                       Row(

@@ -196,26 +196,24 @@ class _MoodCheckInWidgetState extends State<MoodCheckInWidget> {
                                     size: size,
                                     color: MoodEntry.getColor(
                                       type,
-                                    ).withOpacity(0.5),
+                                    ).withOpacity(0.3), // Lower opacity to avoid clash
                                   ),
                                   // 2. Lottie Animation
                                   Lottie.network(
                                     MoodEntry.getLottieUrl(type),
                                     fit: BoxFit.contain,
-                                    animate:
-                                        isSelected, // Animate only when selected
-                                    errorBuilder:
-                                        (context, error, stack) =>
-                                            const SizedBox(),
-                                    frameBuilder: (
-                                      context,
-                                      child,
-                                      composition,
-                                    ) {
-                                      if (composition == null) {
-                                        return const SizedBox();
-                                      }
-                                      return child;
+                                    // Always animate to show "live" UI, or just selected? 
+                                    // User wanted "Animation", let's animate all but maybe slowly or once?
+                                    // Let's stick to animate all for maximum effect.
+                                    animate: true, 
+                                    errorBuilder: (context, error, stack) => const SizedBox(),
+                                    frameBuilder: (context, child, composition) {
+                                      // Fade in when loaded
+                                      return AnimatedOpacity(
+                                        opacity: composition != null ? 1 : 0,
+                                        duration: const Duration(milliseconds: 300),
+                                        child: child,
+                                      );
                                     },
                                   ),
                                 ],

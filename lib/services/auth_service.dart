@@ -108,4 +108,22 @@ class AuthService {
       return null;
     });
   }
+  // Ensure Firestore Doc Exists (Self-Healing)
+  Future<void> ensureUserExists(User user) async {
+    try {
+      final docRef = _firestore.collection('users').doc(user.uid);
+      final doc = await docRef.get();
+      if (!doc.exists) {
+        await docRef.set(UserModel(
+          uid: user.uid,
+          email: user.email ?? '',
+          name: user.displayName ?? 'Người dùng',
+          role: 'single',
+          createdAt: DateTime.now(),
+        ).toJson());
+      }
+    } catch (e) {
+      print("Error ensuring user exists: $e");
+    }
+  }
 }

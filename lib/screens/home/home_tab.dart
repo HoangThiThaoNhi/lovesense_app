@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'for_you_section.dart';
 import 'ai_chat_widget.dart';
 import 'mood_check_in_widget.dart';
+import 'todo_list_widget.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -9,6 +11,8 @@ import 'package:intl/intl.dart';
 import '../../services/ai_service.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
+import 'video_list_widget.dart';
+import '../learning/learning_hub_screen.dart';
 
 class HomeTab extends StatefulWidget {
   final VoidCallback? onNavigateToProfile;
@@ -24,7 +28,6 @@ class _HomeTabState extends State<HomeTab> {
   // Mood data moved to MoodService
 
   late Stream<UserModel?> _userStream;
-  late Stream<QuerySnapshot> _todoStream;
   final String? _uid = FirebaseAuth.instance.currentUser?.uid;
 
   @override
@@ -32,17 +35,9 @@ class _HomeTabState extends State<HomeTab> {
     super.initState();
     if (_uid != null) {
       _userStream = AuthService().getUserStream(_uid!);
-      _todoStream =
-          FirebaseFirestore.instance
-              .collection('users')
-              .doc(_uid)
-              .collection('todos')
-              .orderBy('timestamp', descending: true)
-              .snapshots();
     } else {
       // Handle guest case if needed, though MainScreen guards this
       _userStream = Stream.value(null);
-      _todoStream = Stream.empty();
     }
   }
 
@@ -120,12 +115,17 @@ class _HomeTabState extends State<HomeTab> {
 
                   const SizedBox(height: 32),
 
-                  // 5. Recommended Courses (Dành cho bạn)
+                  // 5. Recommended Courses (Dành cho bạn - Video)
                   _buildCoursesSection(),
 
                   const SizedBox(height: 32),
 
-                  // 6. Community Highlights (Cộng đồng)
+                  // 6. Growth & Challenges (Thử thách & Kỹ năng)
+                  _buildGrowthHubSection(),
+
+                  const SizedBox(height: 32),
+
+                  // 7. Community Highlights (Cộng đồng)
                   _buildCommunitySection(),
 
                   const SizedBox(height: 80), // Bottom padding for FAB
@@ -188,7 +188,7 @@ class _HomeTabState extends State<HomeTab> {
                   radius: 20,
                   backgroundColor: Colors.grey[200],
                   backgroundImage:
-                      photoUrl != null && photoUrl.isNotEmpty
+                      photoUrl != null && photoUrl.trim().isNotEmpty && photoUrl.startsWith('http')
                           ? NetworkImage(photoUrl)
                           : null,
                   child:
@@ -336,6 +336,8 @@ class _HomeTabState extends State<HomeTab> {
                       batch.set(docRef, {
                         'task': task,
                         'done': false,
+                        'priority': 1,
+                        'isArchived': false,
                         'timestamp': FieldValue.serverTimestamp(),
                       });
                     }
@@ -399,176 +401,7 @@ class _HomeTabState extends State<HomeTab> {
   // Cloud based Todo List (Migrated to Firestore)
 
   Widget _buildToDoSection() {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return const SizedBox();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Danh sách việc cần làm',
-              style: GoogleFonts.montserrat(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            IconButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      "Tính năng thêm thủ công sẽ sớm ra mắt! Hãy nhờ AI gợi ý nhé.",
-                    ),
-                  ),
-                );
-              },
-              icon: const Icon(
-                Icons.add_circle_outline,
-                color: Color(0xFFFF4081),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        StreamBuilder<QuerySnapshot>(
-          stream: _todoStream,
-          builder: (context, snapshot) {
-            // Loading State
-            if (!snapshot.hasData) {
-              return const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: CircularProgressIndicator(),
-                ),
-              );
-            }
-
-            final docs = snapshot.data!.docs;
-
-            // Empty State
-            if (docs.isEmpty) {
-              return Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(24),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Text(
-                  "Chưa có nhiệm vụ nào.\nHãy chat với AI để nhận gợi ý!",
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(color: Colors.grey),
-                ),
-              );
-            }
-
-            return ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: docs.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final data = docs[index].data() as Map<String, dynamic>;
-                final id = docs[index].id;
-                final task = data['task'] ?? '';
-                final isDone = data['done'] ?? false;
-
-                return Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color:
-                          isDone
-                              ? Colors.green.withOpacity(0.3)
-                              : Colors.grey.withOpacity(0.1),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.02),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () {
-                          FirebaseFirestore.instance
-                              .collection('users')
-                              .doc(uid)
-                              .collection('todos')
-                              .doc(id)
-                              .update({'done': !isDone});
-                        },
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          width: 24,
-                          height: 24,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: isDone ? Colors.green : Colors.transparent,
-                            border: Border.all(
-                              color: isDone ? Colors.green : Colors.grey,
-                              width: 2,
-                            ),
-                          ),
-                          child:
-                              isDone
-                                  ? const Icon(
-                                    Icons.check,
-                                    size: 16,
-                                    color: Colors.white,
-                                  )
-                                  : null,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          task,
-                          style: GoogleFonts.inter(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                            decoration:
-                                isDone ? TextDecoration.lineThrough : null,
-                            color: isDone ? Colors.grey : Colors.black87,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.delete_outline,
-                          size: 18,
-                          color: Colors.grey,
-                        ),
-                        onPressed: () {
-                          FirebaseFirestore.instance
-                              .collection('users')
-                              .doc(uid)
-                              .collection('todos')
-                              .doc(id)
-                              .delete();
-                        },
-                      ),
-                    ],
-                  ),
-                );
-              },
-            );
-          },
-        ),
-      ],
-    ).animate().fadeIn(delay: 500.ms);
+    return const TodoListWidget();
   }
 
   Widget _buildCommunitySection() {
@@ -737,89 +570,86 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   Widget _buildCoursesSection() {
+    return const ForYouSection();
+  }
+
+  Widget _buildGrowthHubSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Dành cho bạn',
-          style: GoogleFonts.montserrat(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Thử thách & Kỹ năng',
+              style: GoogleFonts.montserrat(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+             TextButton(
+                onPressed: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const LearningHubScreen()));
+                },
+                child: Text('Khám phá', style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFFFF4081))),
+              ),
+          ],
         ),
-        const SizedBox(height: 16),
-        SizedBox(
-          height: 160,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            clipBehavior: Clip.none,
-            children: [
-              _buildCourseCard(
-                'Chữa lành đứa trẻ bên trong',
-                '15 phút',
-                Colors.pink[100]!,
+        const SizedBox(height: 12),
+        GestureDetector(
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LearningHubScreen())),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF673AB7), Color(0xFF9575CD)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              const SizedBox(width: 16),
-              _buildCourseCard(
-                'Quản lý cảm xúc tiêu cực',
-                '10 phút',
-                Colors.green[100]!,
-              ),
-              const SizedBox(width: 16),
-              _buildCourseCard(
-                'Xây dựng sự tự tin',
-                '20 phút',
-                Colors.blue[100]!,
-              ),
-            ],
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.deepPurple.withOpacity(0.3),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                 Expanded(
+                   child: Column(
+                     crossAxisAlignment: CrossAxisAlignment.start,
+                     children: [
+                       Container(
+                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                         decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(8)),
+                         child: const Text('MỚI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10)),
+                       ),
+                       const SizedBox(height: 8),
+                       Text('Nâng cấp bản thân', style: GoogleFonts.montserrat(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                       const SizedBox(height: 4),
+                       Text('Tham gia khóa học kỹ năng và thử thách có thưởng hấp dẫn!', style: GoogleFonts.inter(fontSize: 13, color: Colors.white70)),
+                     ],
+                   )
+                 ),
+                 // Using a generic placeholder icon/image if network is risky, or a safe icon
+                 Container(
+                   decoration: const BoxDecoration(
+                     color: Colors.white24,
+                     shape: BoxShape.circle,
+                   ),
+                   padding: const EdgeInsets.all(12),
+                   child: const Icon(Icons.emoji_events, color: Colors.amber, size: 40),
+                 ),
+              ],
+            ),
           ),
         ),
       ],
-    ).animate().fadeIn(delay: 600.ms).moveX(begin: 50, end: 0);
-  }
-
-  Widget _buildCourseCard(String title, String duration, Color color) {
-    return Container(
-      width: 140,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.play_arrow_rounded, size: 20),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.montserrat(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                  height: 1.2,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                duration,
-                style: GoogleFonts.inter(fontSize: 12, color: Colors.black54),
-              ),
-            ],
-          ),
-        ],
-      ),
     );
   }
+
 }

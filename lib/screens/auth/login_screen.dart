@@ -93,6 +93,11 @@ class _LoginScreenState extends State<LoginScreen> {
         password: _passwordController.text,
       );
 
+      // Ensure Firestore data exists (Self-healing for legacy/broken users)
+      if (_authService.currentUser != null) {
+        await _authService.ensureUserExists(_authService.currentUser!);
+      }
+
       if (!mounted) return;
 
       // Navigate to Home
