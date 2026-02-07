@@ -34,6 +34,16 @@ eventlog.xml
 flutter_*.log
 pubspec.lock
 
+# Environment variables (contains API keys)
+.env
+
+# Test/debug output files
+output*.txt
+models_list*.json
+test/diagnose*.dart
+test/reproduce*.dart
+test/test_*.dart
+
 # Firebase config (if present locally)
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist

@@ -1,4 +1,8 @@
 class AppConfig {
-  // TODO: Thay thế bằng API Key thật của bạn từ Google AI Studio
-  static const String googleApiKey = 'AIzaSyBBMwTGu7Cc7bP4lhe8YNlqDI9_odMTvfU';
+  // Get your FREE Groq API Key at: https://console.groq.com
+  // Configure it in .env file (copy from .env.example)
+  static const String groqApiKey = String.fromEnvironment(
+    'GROQ_API_KEY',
+    defaultValue: 'YOUR_GROQ_API_KEY_HERE',
+  );
 }
