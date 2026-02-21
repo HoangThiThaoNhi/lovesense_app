@@ -4,6 +4,7 @@ import '../../models/user_model.dart';
 import '../../services/todo_service.dart';
 import '../../models/todo_model.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'widgets/todo_detail_bottom_sheet.dart';
 
 class CoupleTodoWidget extends StatefulWidget {
   final UserModel currentUser;
@@ -391,7 +392,9 @@ class _CoupleTodoWidgetState extends State<CoupleTodoWidget> {
                       if (todo.partnerReaction != null) ...[
                         if (todo.isShared) const SizedBox(width: 12),
                         Text(
-                          todo.partnerReaction!,
+                          todo.reactions.values.isNotEmpty
+                              ? todo.reactions.values.first
+                              : (todo.partnerReaction ?? ''),
                           style: const TextStyle(fontSize: 14),
                         ),
                       ],
@@ -403,6 +406,22 @@ class _CoupleTodoWidgetState extends State<CoupleTodoWidget> {
           ),
         ],
       ),
+    );
+  }
+
+  void _showTaskDetailBottomSheet(BuildContext context, TodoModel todo) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder:
+          (context) => TodoDetailBottomSheet(
+            todo: todo,
+            currentUser: widget.currentUser,
+            partner:
+                null, // You can pass actual partner UserModel if fetched, or let the sheet fetch it
+            ownerId: todo.creatorId,
+          ),
     );
   }
 
@@ -418,7 +437,7 @@ class _CoupleTodoWidgetState extends State<CoupleTodoWidget> {
         statusColor = Colors.blue[600]!;
         statusText = "In progress";
         break;
-      case TodoStatus.waiting:
+      case TodoStatus.waitingPartner:
         statusColor = Colors.orange[600]!;
         statusText = "Waiting for partner";
         break;
@@ -426,209 +445,239 @@ class _CoupleTodoWidgetState extends State<CoupleTodoWidget> {
         statusColor = Colors.green[600]!;
         statusText = "Completed";
         break;
+      case TodoStatus.archived:
+        statusColor = Colors.grey[400]!;
+        statusText = "Archived";
+        break;
     }
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color:
-            todo.status == TodoStatus.completed
-                ? Colors.green[50]
-                : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[200]!),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  todo.task,
-                  style: GoogleFonts.montserrat(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    decoration:
-                        todo.status == TodoStatus.completed
-                            ? TextDecoration.lineThrough
-                            : null,
-                    color:
-                        todo.status == TodoStatus.completed
-                            ? Colors.grey[600]
-                            : Colors.black87,
-                  ),
-                ),
-              ),
-              // Avatars mapped to assignee
-              Row(
-                children: [
-                  if (todo.assignedTo == TodoAssignee.me ||
-                      todo.assignedTo == TodoAssignee.both)
-                    CircleAvatar(
-                      radius: 12,
-                      backgroundImage:
-                          widget.currentUser.photoUrl != null
-                              ? NetworkImage(widget.currentUser.photoUrl!)
+    return GestureDetector(
+      onTap: () => _showTaskDetailBottomSheet(context, todo),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color:
+              todo.status == TodoStatus.completed
+                  ? Colors.green[50]
+                  : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey[200]!),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    todo.task,
+                    style: GoogleFonts.montserrat(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      decoration:
+                          todo.status == TodoStatus.completed
+                              ? TextDecoration.lineThrough
                               : null,
-                      backgroundColor: Colors.purple[100],
+                      color:
+                          todo.status == TodoStatus.completed
+                              ? Colors.grey[600]
+                              : Colors.black87,
                     ),
-                  if (todo.assignedTo == TodoAssignee.both)
-                    const SizedBox(width: -8), // Overlap
-                  if (todo.assignedTo == TodoAssignee.partner ||
-                      todo.assignedTo == TodoAssignee.both)
-                    CircleAvatar(
-                      radius: 12,
-                      backgroundColor: Colors.pink[100],
-                      child: const Icon(
-                        Icons.favorite,
-                        size: 12,
-                        color: Colors.pink,
+                  ),
+                ),
+                // Avatars mapped to assignee
+                Row(
+                  children: [
+                    if (todo.assignedTo == TodoAssignee.me)
+                      CircleAvatar(
+                        radius: 12,
+                        backgroundImage:
+                            widget.currentUser.photoUrl != null
+                                ? NetworkImage(widget.currentUser.photoUrl!)
+                                : null,
+                        backgroundColor: Colors.purple[100],
+                      )
+                    else if (todo.assignedTo == TodoAssignee.partner)
+                      CircleAvatar(
+                        radius: 12,
+                        backgroundColor: Colors.pink[100],
+                        child: const Icon(
+                          Icons.favorite,
+                          size: 12,
+                          color: Colors.pink,
+                        ),
+                      )
+                    else if (todo.assignedTo == TodoAssignee.both)
+                      SizedBox(
+                        width: 40,
+                        height: 24,
+                        child: Stack(
+                          children: [
+                            Positioned(
+                              left: 0,
+                              child: CircleAvatar(
+                                radius: 12,
+                                backgroundImage:
+                                    widget.currentUser.photoUrl != null
+                                        ? NetworkImage(
+                                          widget.currentUser.photoUrl!,
+                                        )
+                                        : null,
+                                backgroundColor: Colors.purple[100],
+                              ),
+                            ),
+                            Positioned(
+                              left: 16,
+                              child: CircleAvatar(
+                                radius: 12,
+                                backgroundColor: Colors.pink[100],
+                                child: const Icon(
+                                  Icons.favorite,
+                                  size: 12,
+                                  color: Colors.pink,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    statusText,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: statusColor,
                     ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  statusText,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: statusColor,
                   ),
                 ),
-              ),
-              Row(
-                children: [
-                  Icon(
-                    Icons.chat_bubble_outline,
-                    size: 18,
-                    color: Colors.grey[500],
-                  ),
-                  const SizedBox(width: 8),
-                  Icon(
-                    Icons.add_reaction_outlined,
-                    size: 18,
-                    color: Colors.grey[500],
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildForUsTaskCard(TodoModel todo) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color:
-            todo.aiSuggested
-                ? const Color(0xFFF3E5F5)
-                : const Color(0xFFFFF0F5),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: todo.aiSuggested ? Colors.purple[100]! : Colors.pink[100]!,
+    return GestureDetector(
+      onTap: () => _showTaskDetailBottomSheet(context, todo),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color:
+              todo.aiSuggested
+                  ? const Color(0xFFF3E5F5)
+                  : const Color(0xFFFFF0F5),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: todo.aiSuggested ? Colors.purple[100]! : Colors.pink[100]!,
+          ),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                todo.aiSuggested ? Icons.eco_rounded : Icons.favorite_rounded,
-                size: 16,
-                color: todo.aiSuggested ? Colors.green[600] : Colors.pink[400],
-              ),
-              const SizedBox(width: 6),
-              Text(
-                todo.aiSuggested
-                    ? "Gợi ý từ AI Coach 🌱"
-                    : "Một điều nhỏ hôm nay 💛",
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  todo.aiSuggested ? Icons.eco_rounded : Icons.favorite_rounded,
+                  size: 16,
                   color:
-                      todo.aiSuggested ? Colors.green[800] : Colors.pink[800],
+                      todo.aiSuggested ? Colors.green[600] : Colors.pink[400],
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            todo.task,
-            style: GoogleFonts.montserrat(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
+                const SizedBox(width: 6),
+                Text(
+                  todo.aiSuggested
+                      ? "Gợi ý từ AI Coach 🌱"
+                      : "Một điều nhỏ hôm nay 💛",
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color:
+                        todo.aiSuggested ? Colors.green[800] : Colors.pink[800],
+                  ),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () {
-                    _todoService.toggleTodoDone(
-                      widget.currentUser.uid,
-                      todo.id,
-                      !todo.done,
-                    );
-                  },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: todo.done ? Colors.green : Colors.black87,
-                    side: BorderSide(
-                      color: todo.done ? Colors.green : Colors.grey[300]!,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: Text(todo.done ? "Đã làm" : "Đánh dấu hoàn thành"),
-                ),
+            const SizedBox(height: 8),
+            Text(
+              todo.task,
+              style: GoogleFonts.montserrat(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {},
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        todo.aiSuggested
-                            ? Colors.purple[400]
-                            : Colors.pink[400],
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      _todoService.toggleTodoDone(
+                        widget.currentUser.uid,
+                        todo.id,
+                        !todo.done,
+                      );
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor:
+                          todo.done ? Colors.green : Colors.black87,
+                      side: BorderSide(
+                        color: todo.done ? Colors.green : Colors.grey[300]!,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
+                    child: Text(todo.done ? "Đã làm" : "Đánh dấu hoàn thành"),
                   ),
-                  child: const Text("Gửi lời nhắn"),
                 ),
-              ),
-            ],
-          ),
-        ],
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {},
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                          todo.aiSuggested
+                              ? Colors.purple[400]
+                              : Colors.pink[400],
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text("Gửi lời nhắn"),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -642,6 +691,7 @@ class _CoupleTodoWidgetState extends State<CoupleTodoWidget> {
             : TodoCategory.values[_selectedTab];
     TodoAssignee assignedTo = TodoAssignee.me;
     bool isShared = false;
+    TodoStatus initialStatus = TodoStatus.notStarted;
 
     showModalBottomSheet(
       context: context,
@@ -782,25 +832,49 @@ class _CoupleTodoWidgetState extends State<CoupleTodoWidget> {
                     const SizedBox(height: 16),
                   ],
 
-                  // Share toggle (Only for Personal)
-                  if (selectedCategory == TodoCategory.personal) ...[
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          "Chia sẻ tiến độ với người ấy",
-                          style: GoogleFonts.inter(fontSize: 14),
-                        ),
-                        Switch(
-                          value: isShared,
-                          onChanged:
-                              (val) => setModalState(() => isShared = val),
-                          activeColor: Colors.deepPurple,
-                        ),
-                      ],
+                  // Initial Status Selector
+                  Text(
+                    "Trạng thái ban đầu:",
+                    style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
                     ),
-                    const SizedBox(height: 8),
-                  ],
+                  ),
+                  const SizedBox(height: 8),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children:
+                          [
+                            TodoStatus.notStarted,
+                            TodoStatus.inProgress,
+                            TodoStatus.completed,
+                          ].map((status) {
+                            String label = "Chưa làm";
+                            Color color = Colors.grey;
+                            if (status == TodoStatus.inProgress) {
+                              label = "Đang làm";
+                              color = Colors.blue;
+                            } else if (status == TodoStatus.completed) {
+                              label = "Hoàn thành";
+                              color = Colors.green;
+                            }
+
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ChoiceChip(
+                                label: Text(label),
+                                selected: initialStatus == status,
+                                selectedColor: color.withOpacity(0.2),
+                                onSelected: (val) {
+                                  setModalState(() => initialStatus = status);
+                                },
+                              ),
+                            );
+                          }).toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
 
                   TextField(
                     autofocus: true,
@@ -831,6 +905,7 @@ class _CoupleTodoWidgetState extends State<CoupleTodoWidget> {
                           category: selectedCategory,
                           assignedTo: assignedTo,
                           isShared: isShared,
+                          status: initialStatus,
                         );
                         Navigator.pop(context);
                       },

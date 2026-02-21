@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum TodoCategory { personal, together, forUs }
 
-enum TodoStatus { notStarted, inProgress, waiting, completed }
+enum TodoStatus { notStarted, inProgress, waitingPartner, completed, archived }
 
 enum TodoAssignee { me, partner, both }
 
@@ -14,15 +14,20 @@ class TodoModel {
   final bool isArchived;
   final Timestamp? timestamp;
   final Timestamp? deletedAt;
-
-  // New fields for Couple Mode
+  // New fields for Couple Mode Deep Dive
   final TodoCategory category;
   final TodoAssignee assignedTo;
   final bool isShared;
   final TodoStatus status;
-  final String? partnerReaction;
+  final String?
+  partnerReaction; // Legacy, keeping for backward compatibility or removing if safe. Let's keep it but deprecate.
   final bool aiSuggested;
   final String creatorId;
+
+  // New fields for deep tracking
+  final Map<String, Timestamp> viewedBy;
+  final List<String> completedBy;
+  final Map<String, String> reactions; // userId -> emoji
 
   TodoModel({
     required this.id,
@@ -39,9 +44,32 @@ class TodoModel {
     this.partnerReaction,
     this.aiSuggested = false,
     this.creatorId = '',
+    this.viewedBy = const {},
+    this.completedBy = const [],
+    this.reactions = const {},
   });
 
   factory TodoModel.fromMap(String id, Map<String, dynamic> data) {
+    // Parse viewedBy Map safely
+    Map<String, Timestamp> parsedViewedBy = {};
+    if (data['viewedBy'] is Map) {
+      final Map rawViewedBy = data['viewedBy'];
+      rawViewedBy.forEach((key, value) {
+        if (value is Timestamp) {
+          parsedViewedBy[key.toString()] = value;
+        }
+      });
+    }
+
+    // Parse reactions safely
+    Map<String, String> parsedReactions = {};
+    if (data['reactions'] is Map) {
+      final Map rawReactions = data['reactions'];
+      rawReactions.forEach((key, value) {
+        parsedReactions[key.toString()] = value.toString();
+      });
+    }
+
     return TodoModel(
       id: id,
       task: data['task'] ?? '',
@@ -66,6 +94,9 @@ class TodoModel {
       partnerReaction: data['partnerReaction'],
       aiSuggested: data['aiSuggested'] ?? false,
       creatorId: data['creatorId'] ?? '',
+      viewedBy: parsedViewedBy,
+      completedBy: List<String>.from(data['completedBy'] ?? []),
+      reactions: parsedReactions,
     );
   }
 
@@ -84,6 +115,9 @@ class TodoModel {
       'partnerReaction': partnerReaction,
       'aiSuggested': aiSuggested,
       'creatorId': creatorId,
+      'viewedBy': viewedBy,
+      'completedBy': completedBy,
+      'reactions': reactions,
     };
   }
 
@@ -100,6 +134,9 @@ class TodoModel {
     String? partnerReaction,
     bool? aiSuggested,
     String? creatorId,
+    Map<String, Timestamp>? viewedBy,
+    List<String>? completedBy,
+    Map<String, String>? reactions,
   }) {
     return TodoModel(
       id: id,
@@ -116,6 +153,9 @@ class TodoModel {
       partnerReaction: partnerReaction ?? this.partnerReaction,
       aiSuggested: aiSuggested ?? this.aiSuggested,
       creatorId: creatorId ?? this.creatorId,
+      viewedBy: viewedBy ?? this.viewedBy,
+      completedBy: completedBy ?? this.completedBy,
+      reactions: reactions ?? this.reactions,
     );
   }
 }
