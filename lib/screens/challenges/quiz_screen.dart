@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../models/quiz_model.dart';
-import '../../models/quiz_attempt_model.dart';
 import '../../services/challenge_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 

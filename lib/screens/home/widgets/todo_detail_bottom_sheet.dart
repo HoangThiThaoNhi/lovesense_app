@@ -264,13 +264,118 @@ class _TodoDetailBottomSheetState extends State<TodoDetailBottomSheet> {
   }
 
   Widget _buildTaskTitle() {
-    return Text(
-      _currentTodo.task,
-      style: GoogleFonts.montserrat(
-        fontSize: 22,
-        fontWeight: FontWeight.bold,
-        color: Colors.black87,
-      ),
+    final bool canEdit = _currentTodo.creatorId == widget.currentUser.uid;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Text(
+            _currentTodo.task,
+            style: GoogleFonts.montserrat(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+        ),
+        if (canEdit) ...[
+          IconButton(
+            icon: const Icon(Icons.edit_outlined, size: 20, color: Colors.blue),
+            onPressed: () => _showEditDialog(),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
+            onPressed: () => _showDeleteDialog(),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
+        ],
+      ],
+    );
+  }
+
+  void _showEditDialog() {
+    final TextEditingController controller = TextEditingController(
+      text: _currentTodo.task,
+    );
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: Text(
+              "Sửa công việc",
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+            ),
+            content: TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: const InputDecoration(
+                hintText: "Nhập nội dung công việc...",
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Hủy", style: TextStyle(color: Colors.grey)),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  if (controller.text.trim().isNotEmpty) {
+                    _todoService.updateTodoTask(
+                      widget.ownerId,
+                      _currentTodo.id,
+                      controller.text.trim(),
+                    );
+                  }
+                  Navigator.pop(context);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text("Lưu"),
+              ),
+            ],
+          ),
+    );
+  }
+
+  void _showDeleteDialog() {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: Text(
+              "Xóa công việc?",
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+            ),
+            content: Text(
+              "Bạn có chắc chắn muốn xóa công việc này không?",
+              style: GoogleFonts.inter(),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Hủy", style: TextStyle(color: Colors.grey)),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  _todoService.deleteTodo(widget.ownerId, _currentTodo.id);
+                  Navigator.pop(context); // Close dialog
+                  Navigator.pop(context); // Close bottom sheet
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text("Xóa"),
+              ),
+            ],
+          ),
     );
   }
 
@@ -396,8 +501,9 @@ class _TodoDetailBottomSheetState extends State<TodoDetailBottomSheet> {
                       onSelected: (val) {
                         if (!val ||
                             isSelected ||
-                            status == TodoStatus.waitingPartner)
+                            status == TodoStatus.waitingPartner) {
                           return;
+                        }
                         _todoService.updateTodoStatusAdvanced(
                           widget.ownerId,
                           _currentTodo.id,
@@ -584,10 +690,11 @@ class _TodoDetailBottomSheetState extends State<TodoDetailBottomSheet> {
     return StreamBuilder<QuerySnapshot>(
       stream: _todoService.getCommentsStream(widget.ownerId, _currentTodo.id),
       builder: (context, snapshot) {
-        if (!snapshot.hasData)
+        if (!snapshot.hasData) {
           return const SliverToBoxAdapter(
             child: Center(child: CircularProgressIndicator()),
           );
+        }
 
         final docs = snapshot.data!.docs;
         if (docs.isEmpty) {
@@ -629,11 +736,9 @@ class _TodoDetailBottomSheetState extends State<TodoDetailBottomSheet> {
 
   Widget _buildCommentBubble(TodoCommentModel comment) {
     final timeString =
-        comment.timestamp != null
-            ? DateFormat(
+        DateFormat(
               'HH:mm : dd/MM/yyyy',
-            ).format(comment.timestamp!.toDate())
-            : '';
+            ).format(comment.timestamp!.toDate());
 
     if (comment.isSystemMessage) {
       return Padding(

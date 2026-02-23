@@ -9,6 +9,33 @@ class TodoService {
 
   String get _currentUserId => _auth.currentUser?.uid ?? '';
 
+  /// Log hành động cho Todo List (sử dụng sau này cho AI)
+  Future<void> logTodoAction(
+    String ownerId,
+    String todoId,
+    String action, {
+    String? taskName,
+    Map<String, dynamic>? extraData,
+  }) async {
+    if (_currentUserId.isEmpty) return;
+    try {
+      await _firestore
+          .collection('users')
+          .doc(ownerId)
+          .collection('todoHistory')
+          .add({
+            'todoId': todoId,
+            'action': action,
+            'actorId': _currentUserId,
+            'taskName': taskName,
+            'extraData': extraData ?? {},
+            'timestamp': FieldValue.serverTimestamp(),
+          });
+    } catch (e) {
+      print('Lỗi khi ghi todoHistory: $e');
+    }
+  }
+
   /// Thêm Todo mới
   Future<void> addTodo({
     required String task,
@@ -31,11 +58,13 @@ class TodoService {
       creatorId: _currentUserId,
     );
 
-    await _firestore
+    final docRef = await _firestore
         .collection('users')
         .doc(_currentUserId)
         .collection('todos')
         .add(newTodo.toMap());
+
+    await logTodoAction(_currentUserId, docRef.id, 'created', taskName: task);
   }
 
   /// Đánh dấu là đã xem
@@ -133,18 +162,36 @@ class TodoService {
       });
 
       String statusText = '';
-      if (newStatus == TodoStatus.inProgress)
+      if (newStatus == TodoStatus.inProgress) {
         statusText = 'đang bắt đầu làm việc này.';
+      }
       if (newStatus == TodoStatus.completed &&
-          currentTodo.assignedTo != TodoAssignee.both)
+          currentTodo.assignedTo != TodoAssignee.both) {
         statusText = 'đã hoàn thành công việc.';
-      if (newStatus == TodoStatus.archived)
+      }
+      if (newStatus == TodoStatus.archived) {
         statusText = 'đã lưu trữ công việc này.';
+      }
 
       if (statusText.isNotEmpty) {
         await addSystemComment(ownerId, todoId, statusText);
       }
     }
+
+    // Log history
+    String logAction =
+        isArchived
+            ? 'archived'
+            : (newStatus == TodoStatus.completed
+                ? 'completed'
+                : 'status_changed');
+    await logTodoAction(
+      ownerId,
+      todoId,
+      logAction,
+      taskName: currentTodo.task,
+      extraData: {'status': newStatus.name},
+    );
   }
 
   /// Toggle Reaction
@@ -255,6 +302,13 @@ class TodoService {
           'status':
               isDone ? TodoStatus.completed.name : TodoStatus.inProgress.name,
         });
+
+    await logTodoAction(
+      uid,
+      todoId,
+      isDone ? 'completed' : 'uncompleted',
+      extraData: {'done': isDone},
+    );
   }
 
   /// Cập nhật Status cho Together / For Us (Not started, In progress...)
@@ -269,6 +323,13 @@ class TodoService {
         .collection('todos')
         .doc(todoId)
         .update({'status': status.name});
+
+    await logTodoAction(
+      uid,
+      todoId,
+      'status_changed',
+      extraData: {'status': status.name},
+    );
   }
 
   /// Gửi Reaction thả tim / comment cho Task của Partner
@@ -285,14 +346,34 @@ class TodoService {
         .update({'partnerReaction': reaction});
   }
 
-  /// Xóa (vào thùng rác)
-  Future<void> deleteTodo(String uid, String todoId) async {
+  /// Sửa tên công việc
+  Future<void> updateTodoTask(
+    String ownerId,
+    String todoId,
+    String newTask,
+  ) async {
+    if (_currentUserId.isEmpty) return;
     await _firestore
         .collection('users')
-        .doc(uid)
+        .doc(ownerId)
+        .collection('todos')
+        .doc(todoId)
+        .update({'task': newTask});
+
+    await logTodoAction(ownerId, todoId, 'edited', taskName: newTask);
+  }
+
+  /// Xóa (vào thùng rác)
+  Future<void> deleteTodo(String ownerId, String todoId) async {
+    if (_currentUserId.isEmpty) return;
+    await _firestore
+        .collection('users')
+        .doc(ownerId)
         .collection('todos')
         .doc(todoId)
         .update({'deletedAt': FieldValue.serverTimestamp()});
+
+    await logTodoAction(ownerId, todoId, 'deleted');
   }
 
   /// Stream Lấy danh sách nhiệm vụ của MỘT người (Dùng cho chế độ Single)
