@@ -7,6 +7,7 @@ import '../../services/goal_todo_service.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'goal_detail_screen.dart';
 import 'widgets/create_goal_bottom_sheet.dart';
+import 'archived_goals_screen.dart';
 
 class CoupleTodoWidget extends StatefulWidget {
   final UserModel currentUser;
@@ -314,12 +315,39 @@ class _CoupleTodoWidgetState extends State<CoupleTodoWidget> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          "Mục tiêu hiện tại",
-          style: GoogleFonts.montserrat(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              "Mục tiêu hiện tại",
+              style: GoogleFonts.montserrat(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder:
+                        (_) => ArchivedGoalsScreen(
+                          pillar: pillar,
+                          currentUser: widget.currentUser,
+                        ),
+                  ),
+                );
+              },
+              child: Text(
+                "Xem mục tiêu đã lưu trữ ->",
+                style: GoogleFonts.inter(
+                  color: Colors.blue,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
         ...goals.map((goal) {
@@ -384,19 +412,34 @@ class _CoupleTodoWidgetState extends State<CoupleTodoWidget> {
                               PopupMenuButton<String>(
                                 icon: Icon(
                                   Icons.more_vert,
-                                  size: 18,
+                                  size: 20,
                                   color: Colors.grey[500],
                                 ),
                                 onSelected: (val) {
                                   if (val == 'archive') {
                                     _goalService.archiveGoal(goal.id);
+                                  } else if (val == 'edit') {
+                                    _showEditGoalDialog(goal);
+                                  } else if (val == 'delete') {
+                                    _confirmDeleteGoal(goal.id);
                                   }
                                 },
                                 itemBuilder:
                                     (context) => [
                                       const PopupMenuItem(
+                                        value: 'edit',
+                                        child: Text("Đổi tên mục tiêu"),
+                                      ),
+                                      const PopupMenuItem(
                                         value: 'archive',
                                         child: Text("Lưu trữ mục tiêu"),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 'delete',
+                                        child: Text(
+                                          "Xóa mục tiêu",
+                                          style: TextStyle(color: Colors.red),
+                                        ),
                                       ),
                                     ],
                               ),
@@ -489,6 +532,102 @@ class _CoupleTodoWidgetState extends State<CoupleTodoWidget> {
   }
 
   // Task related methods moved to GoalDetailScreen
+
+  void _showEditGoalDialog(GoalModel goal) {
+    final TextEditingController controller = TextEditingController(
+      text: goal.title,
+    );
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: Text(
+              "Đổi tên mục tiêu",
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+            ),
+            content: TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: const InputDecoration(hintText: "Nhập tên mới..."),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Hủy", style: TextStyle(color: Colors.grey)),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  if (controller.text.trim().isNotEmpty) {
+                    _goalService.updateGoalTitle(
+                      goal.id,
+                      controller.text.trim(),
+                    );
+                  }
+                  Navigator.pop(context);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text("Lưu"),
+              ),
+            ],
+          ),
+    );
+  }
+
+  void _confirmDeleteGoal(String goalId) {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: Text(
+              "Xóa mục tiêu?",
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.bold,
+                color: Colors.red,
+              ),
+            ),
+            content: RichText(
+              text: TextSpan(
+                style: GoogleFonts.inter(fontSize: 14, color: Colors.black87),
+                children: const [
+                  TextSpan(
+                    text: "Cảnh báo: ",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red,
+                    ),
+                  ),
+                  TextSpan(
+                    text:
+                        "Xóa mục tiêu này sẽ làm mất toàn bộ nhiệm vụ bên trong và ảnh hưởng trực tiếp đến tiến độ đánh giá của bạn.\n\n",
+                  ),
+                  TextSpan(text: "Bạn có chắc chắn muốn xóa vĩnh viễn không?"),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Hủy", style: TextStyle(color: Colors.grey)),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  _goalService.deleteGoal(goalId);
+                  Navigator.pop(context);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text("Vẫn Xóa"),
+              ),
+            ],
+          ),
+    );
+  }
 
   void _showAddGoalBottomSheet(BuildContext context, PillarType pillar) {
     showModalBottomSheet(

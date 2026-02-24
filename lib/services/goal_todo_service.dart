@@ -231,6 +231,69 @@ Ví dụ:
         .update({'status': GoalStatus.archived.name});
   }
 
+  /// Unarchive a Goal
+  Future<void> unarchiveGoal(String goalId) async {
+    if (_currentUserId.isEmpty) return;
+    await _firestore
+        .collection('users')
+        .doc(_currentUserId)
+        .collection('goals')
+        .doc(goalId)
+        .update({'status': GoalStatus.active.name});
+  }
+
+  /// Delete a Goal entirely
+  Future<void> deleteGoal(String goalId) async {
+    if (_currentUserId.isEmpty) return;
+
+    // First, delete all tasks associated with this goal
+    final tasksSnapshot =
+        await _firestore
+            .collection('users')
+            .doc(_currentUserId)
+            .collection('tasks')
+            .where('goalId', isEqualTo: goalId)
+            .get();
+
+    WriteBatch batch = _firestore.batch();
+    for (var doc in tasksSnapshot.docs) {
+      batch.delete(doc.reference);
+
+      // Also delete logs for these tasks
+      final logsSnapshot =
+          await _firestore
+              .collection('users')
+              .doc(_currentUserId)
+              .collection('task_logs')
+              .where('taskId', isEqualTo: doc.id)
+              .get();
+      for (var logDoc in logsSnapshot.docs) {
+        batch.delete(logDoc.reference);
+      }
+    }
+
+    // Delete the goal itself
+    final goalRef = _firestore
+        .collection('users')
+        .doc(_currentUserId)
+        .collection('goals')
+        .doc(goalId);
+    batch.delete(goalRef);
+
+    await batch.commit();
+  }
+
+  /// Update a Goal title
+  Future<void> updateGoalTitle(String goalId, String newTitle) async {
+    if (_currentUserId.isEmpty) return;
+    await _firestore
+        .collection('users')
+        .doc(_currentUserId)
+        .collection('goals')
+        .doc(goalId)
+        .update({'title': newTitle});
+  }
+
   /// Get active Goals for my Growth stream
   Stream<List<GoalModel>> getMyGrowthGoalsStream() {
     return getGoalsStream(PillarType.myGrowth);
@@ -243,47 +306,49 @@ Ví dụ:
     }
 
     // Merge streams logic for 'Together' goals
-    final myGoalsStream = _firestore
-        .collection('users')
-        .doc(_currentUserId)
-        .collection('goals')
-        .where('pillar', isEqualTo: PillarType.together.name)
-        .where('status', isEqualTo: GoalStatus.active.name)
-        .snapshots()
-        .map(
-          (snapshot) =>
-              snapshot.docs
-                  .map(
-                    (doc) => GoalModel.fromMap(
-                      doc.id,
-                      doc.data(),
-                      ownerId: _currentUserId,
-                    ),
-                  )
-                  .toList(),
-        )
-        .startWith([]);
+    final myGoalsStream =
+        _firestore
+            .collection('users')
+            .doc(_currentUserId)
+            .collection('goals')
+            .where('pillar', isEqualTo: PillarType.together.name)
+            .where('status', isEqualTo: GoalStatus.active.name)
+            .snapshots()
+            .map(
+              (snapshot) =>
+                  snapshot.docs
+                      .map(
+                        (doc) => GoalModel.fromMap(
+                          doc.id,
+                          doc.data(),
+                          ownerId: _currentUserId,
+                        ),
+                      )
+                      .toList(),
+            )
+            .asBroadcastStream();
 
-    final partnerGoalsStream = _firestore
-        .collection('users')
-        .doc(partnerId)
-        .collection('goals')
-        .where('pillar', isEqualTo: PillarType.together.name)
-        .where('status', isEqualTo: GoalStatus.active.name)
-        .snapshots()
-        .map(
-          (snapshot) =>
-              snapshot.docs
-                  .map(
-                    (doc) => GoalModel.fromMap(
-                      doc.id,
-                      doc.data(),
-                      ownerId: partnerId,
-                    ),
-                  )
-                  .toList(),
-        )
-        .startWith([]);
+    final partnerGoalsStream =
+        _firestore
+            .collection('users')
+            .doc(partnerId)
+            .collection('goals')
+            .where('pillar', isEqualTo: PillarType.together.name)
+            .where('status', isEqualTo: GoalStatus.active.name)
+            .snapshots()
+            .map(
+              (snapshot) =>
+                  snapshot.docs
+                      .map(
+                        (doc) => GoalModel.fromMap(
+                          doc.id,
+                          doc.data(),
+                          ownerId: partnerId,
+                        ),
+                      )
+                      .toList(),
+            )
+            .asBroadcastStream();
 
     return Rx.combineLatest2(myGoalsStream, partnerGoalsStream, (
       List<GoalModel> my,
@@ -292,7 +357,7 @@ Ví dụ:
       final merged = [...my, ...partner];
       merged.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return merged;
-    });
+    }).asBroadcastStream();
   }
 
   /// Get active Goals for For Us stream
@@ -324,6 +389,31 @@ Ví dụ:
         );
   }
 
+  /// Get Archived Goals Stream for a specific Pillar
+  Stream<List<GoalModel>> getArchivedGoalsStream(PillarType pillar) {
+    if (_currentUserId.isEmpty) return Stream.value([]);
+    return _firestore
+        .collection('users')
+        .doc(_currentUserId)
+        .collection('goals')
+        .where('pillar', isEqualTo: pillar.name)
+        .where('status', isEqualTo: GoalStatus.archived.name)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map(
+          (snapshot) =>
+              snapshot.docs
+                  .map(
+                    (doc) => GoalModel.fromMap(
+                      doc.id,
+                      doc.data(),
+                      ownerId: _currentUserId,
+                    ),
+                  )
+                  .toList(),
+        );
+  }
+
   /// Create a Task for a Goal
   Future<void> createTask(String ownerId, GoalTaskModel task) async {
     if (ownerId.isEmpty) return;
@@ -335,21 +425,31 @@ Ví dụ:
   }
 
   /// Get Tasks for a specific Goal
-  Stream<List<GoalTaskModel>> getTasksByGoalId(String ownerId, String goalId) {
+  Stream<List<GoalTaskModel>> getTasksByGoalId(
+    String ownerId,
+    String goalId, {
+    bool includeArchived = false,
+  }) {
     if (ownerId.isEmpty) return Stream.value([]);
-    return _firestore
+    var query = _firestore
         .collection('users')
         .doc(ownerId)
         .collection('tasks')
-        .where('goalId', isEqualTo: goalId)
-        .orderBy('createdAt', descending: false)
-        .snapshots()
-        .map(
-          (snapshot) =>
-              snapshot.docs
-                  .map((doc) => GoalTaskModel.fromMap(doc.id, doc.data()))
-                  .toList(),
-        );
+        .where('goalId', isEqualTo: goalId);
+
+    if (!includeArchived) {
+      query = query.where('isArchived', isEqualTo: false);
+    }
+
+    return query.snapshots().map((snapshot) {
+      final tasks =
+          snapshot.docs
+              .map((doc) => GoalTaskModel.fromMap(doc.id, doc.data()))
+              .toList();
+      // Xắp xếp tại Dart để tránh lỗi index kép của Firebase
+      tasks.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      return tasks;
+    });
   }
 
   /// Complete a Task (and trigger Reflection)
@@ -414,12 +514,40 @@ Ví dụ:
   /// Delete a Task
   Future<void> deleteTask(String ownerId, String taskId) async {
     if (ownerId.isEmpty) return;
+
+    // First remove task logs
+    final logsSnapshot =
+        await _firestore
+            .collection('users')
+            .doc(ownerId)
+            .collection('task_logs')
+            .where('taskId', isEqualTo: taskId)
+            .get();
+
+    WriteBatch batch = _firestore.batch();
+    for (var logDoc in logsSnapshot.docs) {
+      batch.delete(logDoc.reference);
+    }
+
+    final taskRef = _firestore
+        .collection('users')
+        .doc(ownerId)
+        .collection('tasks')
+        .doc(taskId);
+    batch.delete(taskRef);
+
+    await batch.commit();
+  }
+
+  /// Archive a Task
+  Future<void> archiveTask(String ownerId, String taskId) async {
+    if (ownerId.isEmpty) return;
     await _firestore
         .collection('users')
         .doc(ownerId)
         .collection('tasks')
         .doc(taskId)
-        .delete();
+        .update({'isArchived': true});
   }
 
   /// Update a Task title

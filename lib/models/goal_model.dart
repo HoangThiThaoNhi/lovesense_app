@@ -26,6 +26,8 @@ class GoalModel {
   final String visibility; // "both", "only_me"
   final String?
   commitmentLevel; // "Cùng thảo luận", "Cam kết thực hiện", "Mục tiêu chính của năm"
+  final String? participationMode; // "both", "split", "flexible"
+  final int? partnerBaselineScore;
 
   GoalModel({
     required this.id,
@@ -45,6 +47,8 @@ class GoalModel {
     this.partnerStatus = 'active',
     this.visibility = 'both',
     this.commitmentLevel,
+    this.participationMode,
+    this.partnerBaselineScore,
   });
 
   Map<String, dynamic> toMap() {
@@ -65,6 +69,8 @@ class GoalModel {
       'partnerStatus': partnerStatus,
       'visibility': visibility,
       'commitmentLevel': commitmentLevel,
+      'participationMode': participationMode,
+      'partnerBaselineScore': partnerBaselineScore,
     };
   }
 
@@ -96,6 +102,8 @@ class GoalModel {
       partnerStatus: map['partnerStatus'] ?? 'active',
       visibility: map['visibility'] ?? 'both',
       commitmentLevel: map['commitmentLevel'],
+      participationMode: map['participationMode'],
+      partnerBaselineScore: map['partnerBaselineScore'],
     );
   }
 }

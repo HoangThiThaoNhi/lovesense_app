@@ -738,7 +738,7 @@ class _TodoDetailBottomSheetState extends State<TodoDetailBottomSheet> {
     final timeString =
         DateFormat(
               'HH:mm : dd/MM/yyyy',
-            ).format(comment.timestamp!.toDate());
+            ).format(comment.timestamp.toDate());
 
     if (comment.isSystemMessage) {
       return Padding(

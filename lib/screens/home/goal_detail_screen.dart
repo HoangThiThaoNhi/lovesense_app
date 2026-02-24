@@ -50,11 +50,12 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         foregroundColor: Colors.black87,
         elevation: 0,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add_task),
-            onPressed: () => _showAddTaskBottomSheet(context),
-            tooltip: 'Thêm Nhiệm vụ',
-          ),
+          if (widget.goal.status != GoalStatus.archived)
+            IconButton(
+              icon: const Icon(Icons.add_task),
+              onPressed: () => _showAddTaskBottomSheet(context),
+              tooltip: 'Thêm Nhiệm vụ',
+            ),
         ],
       ),
       body: CustomScrollView(
@@ -70,17 +71,23 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   }
 
   Widget _buildGoalHeader() {
+    final pillarColor = _getColorForPillar(widget.goal.pillar);
+
     return Container(
       margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          colors: [pillarColor, pillarColor.withOpacity(0.7)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: pillarColor.withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -88,20 +95,18 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: _getColorForPillar(
-                    widget.goal.pillar,
-                  ).withOpacity(0.1),
+                  color: Colors.white.withOpacity(0.2),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  _getIconForPillar(widget.goal.pillar),
-                  color: _getColorForPillar(widget.goal.pillar),
-                  size: 24,
+                  _getCategoryIcon(widget.goal.category),
+                  color: Colors.white,
+                  size: 32,
                 ),
               ),
               const SizedBox(width: 16),
@@ -112,18 +117,30 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                     Text(
                       widget.goal.title,
                       style: GoogleFonts.montserrat(
-                        fontSize: 20,
+                        fontSize: 22,
                         fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+                        color: Colors.white,
+                        height: 1.2,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      _getPillarName(widget.goal.pillar),
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[600],
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        widget.goal.category ??
+                            _getPillarName(widget.goal.pillar),
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ],
@@ -131,9 +148,167 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 24),
+          _buildProminentCountdown(),
         ],
       ),
-    ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.1, end: 0);
+    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.05, end: 0);
+  }
+
+  Widget _buildProminentCountdown() {
+    if (widget.goal.duration == 'unlimited' || widget.goal.endDate == null) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          children: [
+            const Icon(
+              Icons.all_inclusive_rounded,
+              color: Colors.white,
+              size: 32,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "Không giới hạn thời gian",
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final now = DateTime.now();
+    final difference = widget.goal.endDate!.difference(now);
+    final isOverdue = difference.isNegative;
+    final daysLeft = difference.inDays.abs();
+
+    String titleText = isOverdue ? "ĐÃ QUÁ HẠN" : "THỜI GIAN CÒN LẠI";
+    String dateText =
+        "Mục tiêu kết thúc ngày ${widget.goal.endDate!.day.toString().padLeft(2, '0')}/${widget.goal.endDate!.month.toString().padLeft(2, '0')}/${widget.goal.endDate!.year}";
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color:
+            isOverdue
+                ? Colors.red.withOpacity(0.9)
+                : Colors.white.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.3)),
+        boxShadow:
+            isOverdue
+                ? [
+                  BoxShadow(
+                    color: Colors.red.withOpacity(0.4),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+                : [],
+      ),
+      child: Column(
+        children: [
+          Text(
+            titleText,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: Colors.white.withOpacity(0.9),
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                "$daysLeft",
+                style: GoogleFonts.montserrat(
+                  fontSize: 48,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  height: 1,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                "ngày",
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  color: Colors.white.withOpacity(0.9),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              dateText,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: Colors.white,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  IconData _getCategoryIcon(String? category) {
+    if (category == null) return Icons.star_rounded;
+    switch (category) {
+      case 'Emotional Control':
+        return Icons.psychology_rounded;
+      case 'Self Improvement':
+        return Icons.trending_up_rounded;
+      case 'Discipline':
+        return Icons.fitness_center_rounded;
+      case 'Learning':
+        return Icons.menu_book_rounded;
+      case 'Communication':
+        return Icons.forum_rounded;
+      case 'Conflict Resolution':
+        return Icons.handshake_rounded;
+      case 'Quality Time':
+        return Icons.favorite_rounded;
+      case 'Trust':
+        return Icons.shield_rounded;
+      case 'Emotional Support':
+        return Icons.volunteer_activism_rounded;
+      case 'Financial Planning':
+        return Icons.account_balance_wallet_rounded;
+      case 'Marriage Planning':
+        return Icons.celebration_rounded;
+      case 'Family Plan':
+        return Icons.family_restroom_rounded;
+      case 'Living Arrangement':
+        return Icons.home_work_rounded;
+      case 'Long-term Vision':
+        return Icons.visibility_rounded;
+      case 'Custom':
+        return Icons.star_rounded;
+      default:
+        return Icons.track_changes_rounded;
+    }
   }
 
   Widget _buildTasksList() {
@@ -187,15 +362,16 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      onPressed: () => _showAddTaskBottomSheet(context),
-                      icon: const Icon(Icons.add),
-                      label: const Text("Tạo Nhiệm vụ ngay"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.deepPurple,
-                        foregroundColor: Colors.white,
+                    if (widget.goal.status != GoalStatus.archived)
+                      ElevatedButton.icon(
+                        onPressed: () => _showAddTaskBottomSheet(context),
+                        icon: const Icon(Icons.add),
+                        label: const Text("Tạo Nhiệm vụ ngay"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.deepPurple,
+                          foregroundColor: Colors.white,
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -336,6 +512,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                       value: 'edit',
                       child: Text("Đổi tên nhiệm vụ"),
                     ),
+
                     const PopupMenuItem(
                       value: 'delete',
                       child: Text(
@@ -412,34 +589,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  Text(
-                    "Loại nhiệm vụ:",
-                    style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      ChoiceChip(
-                        label: const Text("Một lần"),
-                        selected: type == TaskType.oneTime,
-                        onSelected:
-                            (val) =>
-                                setModalState(() => type = TaskType.oneTime),
-                        selectedColor: Colors.deepPurple[50],
-                      ),
-                      const SizedBox(width: 8),
-                      ChoiceChip(
-                        label: const Text("Lặp lại"),
-                        selected: type == TaskType.repeating,
-                        onSelected:
-                            (val) =>
-                                setModalState(() => type = TaskType.repeating),
-                        selectedColor: Colors.deepPurple[50],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -548,10 +698,29 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           (context) => AlertDialog(
             title: Text(
               "Xóa nhiệm vụ?",
-              style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.bold,
+                color: Colors.red,
+              ),
             ),
-            content: const Text(
-              "Bạn có chắc chắn muốn xóa nhiệm vụ này không?",
+            content: RichText(
+              text: TextSpan(
+                style: GoogleFonts.inter(fontSize: 14, color: Colors.black87),
+                children: const [
+                  TextSpan(
+                    text: "Cảnh báo: ",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red,
+                    ),
+                  ),
+                  TextSpan(
+                    text:
+                        "Xóa nhiệm vụ này sẽ làm mất dữ liệu và ảnh hưởng trực tiếp đến tiến độ đánh giá của bạn.\n\n",
+                  ),
+                  TextSpan(text: "Bạn có chắc chắn muốn xóa không?"),
+                ],
+              ),
             ),
             actions: [
               TextButton(
@@ -567,7 +736,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                   backgroundColor: Colors.red,
                   foregroundColor: Colors.white,
                 ),
-                child: const Text("Xóa"),
+                child: const Text("Vẫn Xóa"),
               ),
             ],
           ),
@@ -578,12 +747,6 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     if (pillar == PillarType.myGrowth) return Colors.green[500]!;
     if (pillar == PillarType.together) return Colors.blue[500]!;
     return Colors.pink[400]!;
-  }
-
-  IconData _getIconForPillar(PillarType pillar) {
-    if (pillar == PillarType.myGrowth) return Icons.person_outline;
-    if (pillar == PillarType.together) return Icons.people_outline;
-    return Icons.favorite_outline;
   }
 
   String _getPillarName(PillarType pillar) {

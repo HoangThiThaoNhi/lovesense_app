@@ -26,12 +26,16 @@ class _CreateGoalBottomSheetState extends State<CreateGoalBottomSheet> {
   String? _selectedCategory;
   String _selectedDuration = '1 tháng'; // Default value matches list
   DateTime? _startDate = DateTime.now();
-  DateTime? _endDate;
+  DateTime? _endDate = DateTime.now().add(const Duration(days: 30));
   String _successMeasurement = 'task_based';
   int _baselineScore = 3;
   bool _requiresPartnerConfirmation = false;
   String? _commitmentLevel;
   bool _autoSuggestTasks = true;
+
+  // Together specific
+  String _participationMode = 'both';
+  String _visibility = 'both';
 
   bool _isLoading = false;
 
@@ -74,6 +78,14 @@ class _CreateGoalBottomSheetState extends State<CreateGoalBottomSheet> {
     'Cam kết thực hiện',
     'Mục tiêu chính của năm',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.pillar == PillarType.together) {
+      _requiresPartnerConfirmation = true; // Default to true for Together
+    }
+  }
 
   @override
   void dispose() {
@@ -121,7 +133,9 @@ class _CreateGoalBottomSheetState extends State<CreateGoalBottomSheet> {
                     _requiresPartnerConfirmation)
                 ? 'pending'
                 : 'active',
-        visibility: 'both', // Deprecated by user spec, keeping default
+        visibility: widget.pillar == PillarType.together ? _visibility : 'both',
+        participationMode:
+            widget.pillar == PillarType.together ? _participationMode : null,
         commitmentLevel:
             widget.pillar == PillarType.forUs ? _commitmentLevel : null,
       );
@@ -424,9 +438,12 @@ class _CreateGoalBottomSheetState extends State<CreateGoalBottomSheet> {
                       if (dur == 'Tùy chỉnh') {
                         final picked = await showDateRangePicker(
                           context: context,
-                          firstDate: DateTime.now().subtract(
-                            const Duration(days: 365),
+                          initialDateRange: DateTimeRange(
+                            start: DateTime.now(),
+                            end: DateTime.now().add(const Duration(days: 7)),
                           ),
+                          firstDate:
+                              DateTime.now(), // Prevent selecting past dates
                           lastDate: DateTime.now().add(
                             const Duration(days: 3650),
                           ),
@@ -441,7 +458,21 @@ class _CreateGoalBottomSheetState extends State<CreateGoalBottomSheet> {
                       } else {
                         setState(() {
                           _selectedDuration = dur;
-                          _endDate = null;
+                          if (dur == '2 tuần') {
+                            _endDate = DateTime.now().add(
+                              const Duration(days: 14),
+                            );
+                          } else if (dur == '1 tháng') {
+                            _endDate = DateTime.now().add(
+                              const Duration(days: 30),
+                            );
+                          } else if (dur == '3 tháng') {
+                            _endDate = DateTime.now().add(
+                              const Duration(days: 90),
+                            );
+                          } else {
+                            _endDate = null;
+                          }
                         });
                       }
                     }
@@ -449,13 +480,25 @@ class _CreateGoalBottomSheetState extends State<CreateGoalBottomSheet> {
                 );
               }).toList(),
         ),
+        if (['2 tuần', '1 tháng', '3 tháng'].contains(_selectedDuration))
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              "* Tính thời gian từ thời điểm hiện tại.",
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+                color: Colors.grey[600],
+              ),
+            ),
+          ),
         if (_selectedDuration == 'Tùy chỉnh' &&
             _startDate != null &&
             _endDate != null)
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Text(
-              "Từ ${_startDate!.day}/${_startDate!.month} đến ${_endDate!.day}/${_endDate!.month}",
+              "Từ ${_startDate!.day}/${_startDate!.month}/${_startDate!.year} đến ${_endDate!.day}/${_endDate!.month}/${_endDate!.year}",
               style: TextStyle(color: Colors.green[700]),
             ),
           ),
@@ -505,7 +548,7 @@ class _CreateGoalBottomSheetState extends State<CreateGoalBottomSheet> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          "Hiện tại bạn đánh giá mức độ này bao nhiêu?",
+          "Hiện tại bạn đánh giá vấn đề này ở mức nào?",
           style: GoogleFonts.inter(
             fontWeight: FontWeight.bold,
             color: _getColorForPillar(),
@@ -569,18 +612,102 @@ class _CreateGoalBottomSheetState extends State<CreateGoalBottomSheet> {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
             Text(
-              "Mục tiêu này cần được cả hai đồng ý để kích hoạt.",
-              style: TextStyle(fontSize: 13, color: Colors.blue[800]),
+              "Hình thức tham gia",
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.bold,
+                color: Colors.blue[900],
+              ),
             ),
             const SizedBox(height: 8),
-            SwitchListTile(
-              title: const Text("Gửi yêu cầu xác nhận"),
-              value: _requiresPartnerConfirmation,
-              contentPadding: EdgeInsets.zero,
-              onChanged:
-                  (val) => setState(() => _requiresPartnerConfirmation = val),
+            DropdownButtonFormField<String>(
+              value: _participationMode,
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.blue.shade200),
+                ),
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: 'both',
+                  child: Text('Cả hai cùng thực hiện task'),
+                ),
+                DropdownMenuItem(
+                  value: 'split',
+                  child: Text('Phân chia nhiệm vụ'),
+                ),
+                DropdownMenuItem(
+                  value: 'flexible',
+                  child: Text('Linh hoạt (ai làm cũng được)'),
+                ),
+              ],
+              onChanged: (val) {
+                if (val != null) setState(() => _participationMode = val);
+              },
+            ),
+            const SizedBox(height: 16),
+            Text(
+              "Quyền chỉnh sửa",
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.bold,
+                color: Colors.blue[900],
+              ),
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              value: _visibility,
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.blue.shade200),
+                ),
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: 'both',
+                  child: Text('Cả hai chỉnh sửa'),
+                ),
+                DropdownMenuItem(
+                  value: 'only_creator',
+                  child: Text('Chỉ người tạo chỉnh sửa'),
+                ),
+              ],
+              onChanged: (val) {
+                if (val != null) setState(() => _visibility = val);
+              },
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: SwitchListTile(
+                title: Text(
+                  "Yêu cầu xác nhận từ partner",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Colors.blue[900],
+                  ),
+                ),
+                subtitle: Text(
+                  "Bắt buộc để tính tiến độ chung",
+                  style: TextStyle(fontSize: 12, color: Colors.blue[800]),
+                ),
+                value: _requiresPartnerConfirmation,
+                contentPadding: EdgeInsets.zero,
+                onChanged:
+                    (val) => setState(() => _requiresPartnerConfirmation = val),
+              ),
             ),
           ],
         ),
