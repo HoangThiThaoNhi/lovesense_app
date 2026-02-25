@@ -7,10 +7,14 @@ import '../config/app_config.dart';
 import '../models/goal_model.dart';
 import '../models/goal_task_model.dart';
 import '../models/task_log_model.dart';
+import '../models/task_log_model.dart';
+import '../models/notification_model.dart';
+import 'notification_service.dart';
 
 class GoalTodoService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final NotificationService _notificationService = NotificationService();
 
   String get _currentUserId => _auth.currentUser?.uid ?? '';
 
@@ -69,6 +73,25 @@ class GoalTodoService {
         goal.title,
         goal.category!,
       );
+    }
+    if (goal.pillar == PillarType.together && goal.requiresPartnerConfirmation) {
+      // Find partner ID from 'users' collection or active relationships
+      Future.microtask(() async {
+        try {
+          final myDoc = await _firestore.collection('users').doc(_currentUserId).get();
+          final partnerId = myDoc.data()?['partnerId'] as String?;
+          
+          if (partnerId != null && partnerId.isNotEmpty) {
+            await _notificationService.sendNotification(
+              targetUserId: partnerId,
+              type: NotificationType.goalInvitation,
+              content: 'Đã mời bạn cùng thực hiện mục tiêu: ${goal.title}',
+            );
+          }
+        } catch (e) {
+          print('Error sending goal invitation notification: $e');
+        }
+      });
     }
 
     return docRef.id;
@@ -223,12 +246,37 @@ Ví dụ:
   /// Archive a Goal
   Future<void> archiveGoal(String goalId) async {
     if (_currentUserId.isEmpty) return;
+
+    final goalDoc = await _firestore
+        .collection('users')
+        .doc(_currentUserId)
+        .collection('goals')
+        .doc(goalId)
+        .get();
+
     await _firestore
         .collection('users')
         .doc(_currentUserId)
         .collection('goals')
         .doc(goalId)
         .update({'status': GoalStatus.archived.name});
+
+    if (goalDoc.exists) {
+      final goal = GoalModel.fromMap(goalDoc.id, goalDoc.data()!);
+      if (goal.pillar == PillarType.together || goal.visibility == 'both') {
+        final myDoc =
+            await _firestore.collection('users').doc(_currentUserId).get();
+        final partnerId = myDoc.data()?['partnerId'] as String?;
+
+        if (partnerId != null && partnerId.isNotEmpty) {
+          await _notificationService.sendNotification(
+            targetUserId: partnerId,
+            type: NotificationType.goalUpdated,
+            content: 'Đã lưu trữ mục tiêu: ${goal.title}',
+          );
+        }
+      }
+    }
   }
 
   /// Unarchive a Goal
@@ -272,6 +320,32 @@ Ví dụ:
       }
     }
 
+    // Fetch the goal to see if it's a Together goal
+    final goalDoc = await _firestore
+        .collection('users')
+        .doc(_currentUserId)
+        .collection('goals')
+        .doc(goalId)
+        .get();
+
+    if (goalDoc.exists) {
+      final goal = GoalModel.fromMap(goalDoc.id, goalDoc.data()!);
+      if (goal.pillar == PillarType.together || goal.visibility == 'both') {
+        // Find partner ID to notify
+        final myDoc =
+            await _firestore.collection('users').doc(_currentUserId).get();
+        final partnerId = myDoc.data()?['partnerId'] as String?;
+
+        if (partnerId != null && partnerId.isNotEmpty) {
+          await _notificationService.sendNotification(
+            targetUserId: partnerId,
+            type: NotificationType.goalDeleted,
+            content: 'Đã xóa mục tiêu chung: ${goal.title}',
+          );
+        }
+      }
+    }
+
     // Delete the goal itself
     final goalRef = _firestore
         .collection('users')
@@ -286,12 +360,38 @@ Ví dụ:
   /// Update a Goal title
   Future<void> updateGoalTitle(String goalId, String newTitle) async {
     if (_currentUserId.isEmpty) return;
+
+    // Fetch goal to check if it's Together goal
+    final goalDoc = await _firestore
+        .collection('users')
+        .doc(_currentUserId)
+        .collection('goals')
+        .doc(goalId)
+        .get();
+
     await _firestore
         .collection('users')
         .doc(_currentUserId)
         .collection('goals')
         .doc(goalId)
         .update({'title': newTitle});
+
+    if (goalDoc.exists) {
+      final goal = GoalModel.fromMap(goalDoc.id, goalDoc.data()!);
+      if ((goal.pillar == PillarType.together || goal.visibility == 'both') && goal.title != newTitle) {
+        final myDoc =
+            await _firestore.collection('users').doc(_currentUserId).get();
+        final partnerId = myDoc.data()?['partnerId'] as String?;
+
+        if (partnerId != null && partnerId.isNotEmpty) {
+          await _notificationService.sendNotification(
+            targetUserId: partnerId,
+            type: NotificationType.goalUpdated,
+            content: 'Đã đổi tên mục tiêu "${goal.title}" thành "$newTitle"',
+          );
+        }
+      }
+    }
   }
 
   /// Get active Goals for my Growth stream
@@ -497,6 +597,28 @@ Ví dụ:
           'streak': FieldValue.increment(1),
         });
       }
+
+      // Check if it's a together goal to notify partner
+      final goalDoc = await _firestore
+          .collection('users')
+          .doc(ownerId)
+          .collection('goals')
+          .doc(task.goalId)
+          .get();
+      if (goalDoc.exists) {
+        final goal = GoalModel.fromMap(goalDoc.id, goalDoc.data()!);
+        if (goal.pillar == PillarType.together || goal.visibility == 'both') {
+          final myDoc = await _firestore.collection('users').doc(_currentUserId).get();
+          final partnerId = myDoc.data()?['partnerId'] as String?;
+          if (partnerId != null && partnerId.isNotEmpty) {
+            await _notificationService.sendNotification(
+              targetUserId: partnerId,
+              type: NotificationType.goalUpdated,
+              content: 'Đã hoàn thành công việc "${task.title}" trong mục tiêu "${goal.title}"',
+            );
+          }
+        }
+      }
     }
   }
 
@@ -529,6 +651,22 @@ Ví dụ:
       batch.delete(logDoc.reference);
     }
 
+    // Fetch task before deleting to get goal context
+    final taskDoc = await _firestore
+        .collection('users')
+        .doc(ownerId)
+        .collection('tasks')
+        .doc(taskId)
+        .get();
+
+    String? goalId;
+    String? taskTitle;
+    if (taskDoc.exists) {
+      final task = GoalTaskModel.fromMap(taskDoc.id, taskDoc.data()!);
+      goalId = task.goalId;
+      taskTitle = task.title;
+    }
+
     final taskRef = _firestore
         .collection('users')
         .doc(ownerId)
@@ -537,6 +675,31 @@ Ví dụ:
     batch.delete(taskRef);
 
     await batch.commit();
+
+    // Check if it's a together goal to notify partner after deletion
+    if (goalId != null && taskTitle != null) {
+      final goalDoc = await _firestore
+          .collection('users')
+          .doc(ownerId)
+          .collection('goals')
+          .doc(goalId)
+          .get();
+      if (goalDoc.exists) {
+        final goal = GoalModel.fromMap(goalDoc.id, goalDoc.data()!);
+        if (goal.pillar == PillarType.together || goal.visibility == 'both') {
+          final myDoc =
+              await _firestore.collection('users').doc(_currentUserId).get();
+          final partnerId = myDoc.data()?['partnerId'] as String?;
+          if (partnerId != null && partnerId.isNotEmpty) {
+            await _notificationService.sendNotification(
+              targetUserId: partnerId,
+              type: NotificationType.goalUpdated,
+              content: 'Đã xóa công việc "$taskTitle" khỏi mục tiêu "${goal.title}"',
+            );
+          }
+        }
+      }
+    }
   }
 
   /// Archive a Task
@@ -563,5 +726,48 @@ Ví dụ:
         .collection('tasks')
         .doc(taskId)
         .update({'title': newTitle});
+  }
+
+  /// Thay đổi trạng thái hoàn thành của Goal cho chế độ Cả Hai
+  Future<void> toggleGoalCompletionStatus(String ownerId, String goalId, String userId, bool isDone) async {
+    if (_currentUserId.isEmpty) return;
+    
+    final docRef = _firestore
+        .collection('users')
+        .doc(ownerId)
+        .collection('goals')
+        .doc(goalId);
+
+    if (isDone) {
+      await docRef.update({
+        'completedBy': FieldValue.arrayUnion([userId])
+      });
+    } else {
+      await docRef.update({
+        'completedBy': FieldValue.arrayRemove([userId])
+      });
+    }
+  }
+
+  /// Chấp nhận một lời mời goal Together (từ partner / ownerId)
+  Future<void> acceptGoal(String ownerId, String goalId) async {
+    if (_currentUserId.isEmpty) return;
+    await _firestore
+        .collection('users')
+        .doc(ownerId)
+        .collection('goals')
+        .doc(goalId)
+        .update({'partnerStatus': 'active'});
+  }
+
+  /// Từ chối một lời mời goal Together (từ partner / ownerId)
+  Future<void> declineGoal(String ownerId, String goalId) async {
+    if (_currentUserId.isEmpty) return;
+    await _firestore
+        .collection('users')
+        .doc(ownerId)
+        .collection('goals')
+        .doc(goalId)
+        .update({'partnerStatus': 'declined'});
   }
 }

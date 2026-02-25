@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum NotificationType { moodReaction, other }
+enum NotificationType { moodReaction, goalInvitation, goalUpdated, goalDeleted, other }
 
 class NotificationModel {
   final String id;

@@ -10,10 +10,10 @@ class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
   @override
-  State<MainScreen> createState() => _MainScreenState();
+  State<MainScreen> createState() => MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
+class MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
   @override
@@ -32,12 +32,12 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   late final List<Widget> _screens = [
-    HomeTab(onNavigateToProfile: () => _onItemTapped(2)),
+    HomeTab(onNavigateToProfile: () => navigateToTab(2)),
     const JourneyTab(),
     const ProfileTab(),
   ];
 
-  void _onItemTapped(int index) async {
+  void navigateToTab(int index) async {
     setState(() {
       _selectedIndex = index;
     });
@@ -62,7 +62,7 @@ class _MainScreenState extends State<MainScreen> {
         ),
         child: NavigationBar(
           selectedIndex: _selectedIndex,
-          onDestinationSelected: _onItemTapped,
+          onDestinationSelected: navigateToTab,
           backgroundColor: Colors.white,
           indicatorColor: const Color(0xFFFF4081).withOpacity(0.1),
           destinations: [

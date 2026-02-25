@@ -32,6 +32,9 @@ class _CreateGoalBottomSheetState extends State<CreateGoalBottomSheet> {
   bool _requiresPartnerConfirmation = false;
   String? _commitmentLevel;
   bool _autoSuggestTasks = true;
+  int? _targetCount;
+  String? _streakType = 'both';
+  int? _targetScore = 4;
 
   // Together specific
   String _participationMode = 'both';
@@ -39,30 +42,30 @@ class _CreateGoalBottomSheetState extends State<CreateGoalBottomSheet> {
 
   bool _isLoading = false;
 
-  final Map<PillarType, List<String>> _categoriesMap = {
-    PillarType.myGrowth: [
-      'Emotional Control',
-      'Self Improvement',
-      'Discipline',
-      'Learning',
-      'Custom',
-    ],
-    PillarType.together: [
-      'Communication',
-      'Conflict Resolution',
-      'Quality Time',
-      'Trust',
-      'Emotional Support',
-      'Custom',
-    ],
-    PillarType.forUs: [
-      'Financial Planning',
-      'Marriage Planning',
-      'Family Plan',
-      'Living Arrangement',
-      'Long-term Vision',
-      'Custom',
-    ],
+  final Map<PillarType, Map<String, String>> _categoriesMap = {
+    PillarType.myGrowth: {
+      'Emotional Control': 'Kiểm soát cảm xúc',
+      'Self Improvement': 'Phát triển bản thân',
+      'Discipline': 'Kỷ luật',
+      'Learning': 'Học tập & Kỹ năng',
+      'Custom': 'Khác',
+    },
+    PillarType.together: {
+      'Communication': 'Giao tiếp',
+      'Conflict Resolution': 'Giải quyết xung đột',
+      'Quality Time': 'Thời gian chất lượng',
+      'Trust': 'Niềm tin',
+      'Emotional Support': 'Hỗ trợ tinh thần',
+      'Custom': 'Khác',
+    },
+    PillarType.forUs: {
+      'Financial Planning': 'Tài chính',
+      'Marriage Planning': 'Kế hoạch kết hôn',
+      'Family Plan': 'Gia đình',
+      'Living Arrangement': 'Chỗ ở & Cuộc sống',
+      'Long-term Vision': 'Tầm nhìn dài hạn',
+      'Custom': 'Khác',
+    },
   };
 
   final List<String> _durations = [
@@ -124,13 +127,20 @@ class _CreateGoalBottomSheetState extends State<CreateGoalBottomSheet> {
         successMeasurement: _successMeasurement,
         baselineScore:
             _successMeasurement == 'self_rating' ? _baselineScore : null,
+        targetScore:
+            _successMeasurement == 'self_rating' ? _targetScore : null,
+        targetCount:
+            (_successMeasurement == 'task_based' && _participationMode == 'flexible') ? _targetCount : null,
+        streakType:
+            _successMeasurement == 'streak' ? _streakType : null,
         requiresPartnerConfirmation:
-            widget.pillar != PillarType.myGrowth
-                ? _requiresPartnerConfirmation
-                : false,
+            widget.pillar == PillarType.together
+                ? true
+                : widget.pillar != PillarType.myGrowth
+                    ? _requiresPartnerConfirmation
+                    : false,
         partnerStatus:
-            (widget.pillar != PillarType.myGrowth &&
-                    _requiresPartnerConfirmation)
+            (widget.pillar == PillarType.together || (widget.pillar != PillarType.myGrowth && _requiresPartnerConfirmation))
                 ? 'pending'
                 : 'active',
         visibility: widget.pillar == PillarType.together ? _visibility : 'both',
@@ -333,7 +343,7 @@ class _CreateGoalBottomSheetState extends State<CreateGoalBottomSheet> {
   }
 
   Widget _buildCategoryField() {
-    final categories = _categoriesMap[widget.pillar] ?? [];
+    final Map<String, String> categories = _categoriesMap[widget.pillar] ?? <String, String>{};
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -347,71 +357,16 @@ class _CreateGoalBottomSheetState extends State<CreateGoalBottomSheet> {
           ),
         ),
         const SizedBox(height: 8),
-        InkWell(
-          onTap: () => _showCategoryPicker(categories),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade300),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  _selectedCategory ?? "Chọn danh mục",
-                  style: TextStyle(
-                    color:
-                        _selectedCategory == null
-                            ? Colors.grey.shade600
-                            : Colors.black87,
-                    fontSize: 16,
-                  ),
-                ),
-                Icon(Icons.arrow_drop_down, color: Colors.grey.shade600),
-              ],
-            ),
-          ),
+        _buildDropdownAlternative(
+          label: "Danh mục",
+          valueKey: _selectedCategory,
+          items: categories,
+          hint: "Chọn danh mục",
+          onChanged: (val) {
+            setState(() => _selectedCategory = val);
+          },
         ),
       ],
-    );
-  }
-
-  void _showCategoryPicker(List<String> categories) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  "Chọn danh mục",
-                  style: GoogleFonts.inter(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                  ),
-                ),
-              ),
-              const Divider(height: 1),
-              ...categories.map(
-                (cat) => ListTile(
-                  title: Text(cat),
-                  onTap: () {
-                    setState(() => _selectedCategory = cat);
-                    Navigator.pop(ctx);
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 
@@ -524,6 +479,21 @@ class _CreateGoalBottomSheetState extends State<CreateGoalBottomSheet> {
           const SizedBox(height: 8),
           _buildRadioOption('task_based', 'Dựa trên hoàn thành task'),
           _buildRadioOption('streak', 'Duy trì liên tục (streak)'),
+          if (_successMeasurement == 'streak' && widget.pillar == PillarType.together)
+            Padding(
+               padding: const EdgeInsets.only(left: 32, bottom: 8, right: 16),
+               child: _buildDropdownAlternative(
+                 label: "Quy tắc tính streak",
+                 valueKey: _streakType,
+                 items: const {
+                   'both': 'Cả hai phải check-in',
+                   'any': 'Chỉ cần 1 trong 2',
+                   'individual': 'Tính riêng',
+                 },
+                 hint: "Chọn quy tắc tính streak",
+                 onChanged: (val) => setState(() => _streakType = val),
+               ),
+            ),
           _buildRadioOption('self_rating', 'Tự đánh giá cải thiện'),
         ],
       ),
@@ -564,6 +534,33 @@ class _CreateGoalBottomSheetState extends State<CreateGoalBottomSheet> {
           label: _baselineScore.toString(),
           onChanged: (val) {
             setState(() => _baselineScore = val.toInt());
+          },
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: const [
+            Text("Thấp", style: TextStyle(color: Colors.grey)),
+            Text("Cao", style: TextStyle(color: Colors.grey)),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Text(
+          "Mục tiêu hoàn thành khi đánh giá đạt:",
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.bold,
+            color: Colors.green[700],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Slider(
+          value: (_targetScore ?? 4).toDouble(),
+          min: 1,
+          max: 5,
+          divisions: 4,
+          activeColor: Colors.green[600],
+          label: _targetScore.toString(),
+          onChanged: (val) {
+            setState(() => _targetScore = val.toInt());
           },
         ),
         Row(
@@ -621,36 +618,83 @@ class _CreateGoalBottomSheetState extends State<CreateGoalBottomSheet> {
               ),
             ),
             const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              value: _participationMode,
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.blue.shade200),
-                ),
-              ),
-              items: const [
-                DropdownMenuItem(
-                  value: 'both',
-                  child: Text('Cả hai cùng thực hiện task'),
-                ),
-                DropdownMenuItem(
-                  value: 'split',
-                  child: Text('Phân chia nhiệm vụ'),
-                ),
-                DropdownMenuItem(
-                  value: 'flexible',
-                  child: Text('Linh hoạt (ai làm cũng được)'),
-                ),
-              ],
+            _buildDropdownAlternative(
+              label: "Hình thức tham gia",
+              valueKey: _participationMode,
+              items: const {
+                'both': 'Cả hai cùng thực hiện task',
+                'split': 'Phân chia nhiệm vụ',
+                'flexible': 'Linh hoạt (ai làm cũng được)',
+              },
+              hint: "Chọn hình thức tham gia",
               onChanged: (val) {
-                if (val != null) setState(() => _participationMode = val);
+                setState(() => _participationMode = val);
               },
             ),
             const SizedBox(height: 16),
+            if (_successMeasurement == 'task_based' && _participationMode == 'flexible')
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                child: TextFormField(
+                  keyboardType: TextInputType.number,
+                  initialValue: _targetCount?.toString() ?? '',
+                  decoration: InputDecoration(
+                    labelText: "Số lượng task tổng cần đạt",
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onChanged: (val) => _targetCount = int.tryParse(val),
+                  validator: (val) {
+                    if (_successMeasurement == 'task_based' && _participationMode == 'flexible') {
+                      if (val == null || int.tryParse(val) == null || int.parse(val) <= 0) {
+                        return 'Vui lòng nhập số lượng (VD: 10)';
+                      }
+                    }
+                    return null;
+                  }
+                ),
+              ),
+            if (_participationMode == 'both')
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.info_outline, color: Colors.orange, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Goal cần sự tham gia của cả hai",
+                            style: GoogleFonts.inter(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              color: Colors.orange.shade900,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "Mục tiêu chỉ hoàn thành khi cả hai đều xác nhận đã thực hiện.",
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: Colors.orange.shade800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             Text(
               "Quyền chỉnh sửa",
               style: GoogleFonts.inter(
@@ -659,55 +703,17 @@ class _CreateGoalBottomSheetState extends State<CreateGoalBottomSheet> {
               ),
             ),
             const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              value: _visibility,
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.blue.shade200),
-                ),
-              ),
-              items: const [
-                DropdownMenuItem(
-                  value: 'both',
-                  child: Text('Cả hai chỉnh sửa'),
-                ),
-                DropdownMenuItem(
-                  value: 'only_creator',
-                  child: Text('Chỉ người tạo chỉnh sửa'),
-                ),
-              ],
-              onChanged: (val) {
-                if (val != null) setState(() => _visibility = val);
+            _buildDropdownAlternative(
+              label: "Quyền chỉnh sửa",
+              valueKey: _visibility,
+              items: const {
+                'both': 'Cả hai chỉnh sửa',
+                'only_creator': 'Chỉ người tạo chỉnh sửa',
               },
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: SwitchListTile(
-                title: Text(
-                  "Yêu cầu xác nhận từ partner",
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Colors.blue[900],
-                  ),
-                ),
-                subtitle: Text(
-                  "Bắt buộc để tính tiến độ chung",
-                  style: TextStyle(fontSize: 12, color: Colors.blue[800]),
-                ),
-                value: _requiresPartnerConfirmation,
-                contentPadding: EdgeInsets.zero,
-                onChanged:
-                    (val) => setState(() => _requiresPartnerConfirmation = val),
-              ),
+              hint: "Quyền chỉnh sửa",
+              onChanged: (val) {
+                setState(() => _visibility = val);
+              },
             ),
           ],
         ),
@@ -739,21 +745,11 @@ class _CreateGoalBottomSheetState extends State<CreateGoalBottomSheet> {
             ],
           ),
           const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            initialValue: _commitmentLevel,
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: Colors.pink.shade200),
-              ),
-            ),
-            hint: const Text("Chọn mức cam kết"),
-            items:
-                _commitments.map((cat) {
-                  return DropdownMenuItem(value: cat, child: Text(cat));
-                }).toList(),
+          _buildDropdownAlternative(
+            label: "Mức cam kết",
+            valueKey: _commitmentLevel,
+            items: { for (var c in _commitments) c : c },
+            hint: "Chọn mức cam kết",
             onChanged: (val) {
               setState(() => _commitmentLevel = val);
             },
@@ -826,5 +822,81 @@ class _CreateGoalBottomSheetState extends State<CreateGoalBottomSheet> {
     if (widget.pillar == PillarType.myGrowth) return Colors.green[600]!;
     if (widget.pillar == PillarType.together) return Colors.blue[600]!;
     return Colors.pink[400]!;
+  }
+
+  Widget _buildDropdownAlternative({
+    required String label,
+    required String? valueKey,
+    required Map<String, String> items,
+    required Function(String) onChanged,
+    required String hint,
+  }) {
+    final selectedText = valueKey != null && items.containsKey(valueKey) ? items[valueKey]! : hint;
+
+    return InkWell(
+      onTap: () {
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: Colors.white,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          builder: (context) {
+            return SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                   Padding(
+                     padding: const EdgeInsets.all(16),
+                     child: Text(label, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16)),
+                   ),
+                   const Divider(height: 1),
+                   Flexible(
+                     child: SingleChildScrollView(
+                       child: Column(
+                         mainAxisSize: MainAxisSize.min,
+                         children: items.entries.map((entry) => ListTile(
+                           title: Text(entry.value, style: GoogleFonts.inter(
+                             fontWeight: entry.key == valueKey ? FontWeight.bold : FontWeight.normal,
+                             color: entry.key == valueKey ? _getColorForPillar() : Colors.black,
+                           )),
+                           trailing: entry.key == valueKey ? Icon(Icons.check, color: _getColorForPillar()) : null,
+                           onTap: () {
+                             onChanged(entry.key);
+                             Navigator.pop(context);
+                           },
+                         )).toList(),
+                       ),
+                     ),
+                   ),
+                   const SizedBox(height: 16),
+                ]
+              )
+            );
+          }
+        );
+      },
+      child: InputDecorator(
+        decoration: InputDecoration(
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(selectedText, style: GoogleFonts.inter(
+              color: valueKey == null ? Colors.grey.shade600 : Colors.black,
+            )),
+            const Icon(Icons.arrow_drop_down, color: Colors.grey),
+          ],
+        ),
+      ),
+    );
   }
 }

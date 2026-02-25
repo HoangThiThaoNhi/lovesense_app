@@ -28,6 +28,10 @@ class GoalModel {
   commitmentLevel; // "Cùng thảo luận", "Cam kết thực hiện", "Mục tiêu chính của năm"
   final String? participationMode; // "both", "split", "flexible"
   final int? partnerBaselineScore;
+  final List<String> completedBy;
+  final int? targetCount;
+  final String? streakType; // "both", "any", "individual"
+  final int? targetScore;
 
   GoalModel({
     required this.id,
@@ -49,6 +53,10 @@ class GoalModel {
     this.commitmentLevel,
     this.participationMode,
     this.partnerBaselineScore,
+    this.completedBy = const [],
+    this.targetCount,
+    this.streakType,
+    this.targetScore,
   });
 
   Map<String, dynamic> toMap() {
@@ -71,6 +79,10 @@ class GoalModel {
       'commitmentLevel': commitmentLevel,
       'participationMode': participationMode,
       'partnerBaselineScore': partnerBaselineScore,
+      'completedBy': completedBy,
+      'targetCount': targetCount,
+      'streakType': streakType,
+      'targetScore': targetScore,
     };
   }
 
@@ -104,6 +116,10 @@ class GoalModel {
       commitmentLevel: map['commitmentLevel'],
       participationMode: map['participationMode'],
       partnerBaselineScore: map['partnerBaselineScore'],
+      completedBy: List<String>.from(map['completedBy'] ?? []),
+      targetCount: map['targetCount'],
+      streakType: map['streakType'],
+      targetScore: map['targetScore'],
     );
   }
 }

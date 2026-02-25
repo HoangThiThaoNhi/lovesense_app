@@ -150,6 +150,14 @@ class _CoupleTodoCardState extends State<CoupleTodoCard> {
       offset: const Offset(0, 40),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       onSelected: (value) {
+        if (value == 'complete') {
+          _todoService.updateTodoStatusAdvanced(
+            todo.creatorId,
+            todo.id,
+            TodoStatus.completed,
+            todo,
+          );
+        }
         if (value == 'edit') _showEditDialogForTodo(todo);
         if (value == 'archive') {
           _todoService.updateTodoStatusAdvanced(
@@ -163,6 +171,17 @@ class _CoupleTodoCardState extends State<CoupleTodoCard> {
       },
       itemBuilder:
           (context) => [
+            if (todo.status != TodoStatus.completed)
+              PopupMenuItem(
+                value: 'complete',
+                child: Row(
+                  children: [
+                    const Icon(Icons.check_circle_outline, size: 20, color: Colors.green),
+                    const SizedBox(width: 8),
+                    Text("Hoàn thành", style: GoogleFonts.inter()),
+                  ],
+                ),
+              ),
             if (canEdit)
               PopupMenuItem(
                 value: 'edit',

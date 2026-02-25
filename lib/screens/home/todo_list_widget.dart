@@ -423,11 +423,18 @@ class _TodoListWidgetState extends State<TodoListWidget> {
                   ),
                 ),
               ),
-               // Options Menu (3 dots)
               PopupMenuButton<String>(
                 icon: const Icon(Icons.more_vert, color: Colors.grey),
+                offset: const Offset(0, 40),
                 onSelected: (value) {
-                  if (value == 'archive') {
+                  if (value == 'complete') {
+                    FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(uid)
+                        .collection('todos')
+                        .doc(todo.id)
+                        .update({'done': true});
+                  } else if (value == 'archive') {
                     FirebaseFirestore.instance
                         .collection('users')
                         .doc(uid)
@@ -469,6 +476,17 @@ class _TodoListWidgetState extends State<TodoListWidget> {
                   }
                 },
                 itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                  if (!todo.done)
+                    const PopupMenuItem<String>(
+                      value: 'complete',
+                      child: Row(
+                        children: [
+                          Icon(Icons.check_circle_outline, color: Colors.green, size: 20),
+                          SizedBox(width: 8),
+                          Text('Hoàn thành'),
+                        ],
+                      ),
+                    ),
                   const PopupMenuItem<String>(
                     value: 'archive',
                     child: Row(

@@ -5,6 +5,7 @@ import '../../../models/request_model.dart';
 import '../../../models/notification_model.dart';
 import '../../../services/profile_service.dart';
 import '../../../services/notification_service.dart';
+import '../../main_screen.dart';
 
 class RequestsModal extends StatefulWidget {
   const RequestsModal({super.key});
@@ -118,6 +119,14 @@ class _RequestsModalState extends State<RequestsModal> {
                       fontSize: 12,
                     ),
                   ),
+                  onTap: () {
+                    // Caculate routing if it's a goal invitation
+                    if (notif.type == NotificationType.goalInvitation) {
+                      Navigator.pop(context); // Đóng modal hiện tại
+                      final mainState = context.findAncestorStateOfType<MainScreenState>();
+                      mainState?.navigateToTab(0); // Dashboard => Tab 0
+                    }
+                  },
                 );
               },
             );
