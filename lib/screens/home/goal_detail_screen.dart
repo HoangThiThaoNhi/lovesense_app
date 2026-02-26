@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/goal_model.dart';
 import '../../models/goal_task_model.dart';
 import '../../models/user_model.dart';
@@ -24,6 +25,7 @@ class GoalDetailScreen extends StatefulWidget {
 class _GoalDetailScreenState extends State<GoalDetailScreen> {
   final GoalTodoService _goalService = GoalTodoService();
   late String _ownerId;
+  UserModel? _partnerUser;
 
   @override
   void initState() {
@@ -32,6 +34,33 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         widget.goal.ownerId.isEmpty
             ? widget.currentUser.uid
             : widget.goal.ownerId;
+    _fetchPartner();
+  }
+
+  Future<void> _fetchPartner() async {
+    final partnerId = widget.currentUser.partnerId;
+    if (partnerId != null && partnerId.isNotEmpty) {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(partnerId).get();
+      if (doc.exists && mounted) {
+        final data = doc.data()!;
+        data['uid'] = doc.id;
+        setState(() {
+          _partnerUser = UserModel.fromJson(data);
+        });
+      }
+    }
+  }
+
+  Widget _buildAvatar(String? userId, {double radius = 8}) {
+    if (userId == null) return Icon(Icons.person, size: radius * 2, color: Colors.grey);
+    final user = userId == widget.currentUser.uid ? widget.currentUser : _partnerUser;
+    if (user != null && user.photoUrl != null && user.photoUrl!.isNotEmpty) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundImage: NetworkImage(user.photoUrl!),
+      );
+    }
+    return Icon(Icons.person, size: radius * 2, color: Colors.grey);
   }
 
   @override
@@ -50,7 +79,9 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         foregroundColor: Colors.black87,
         elevation: 0,
         actions: [
-          if (widget.goal.status != GoalStatus.archived)
+          if (widget.goal.status != GoalStatus.archived && 
+              !(widget.goal.visibility == 'only_creator' && _ownerId != widget.currentUser.uid) &&
+              !(widget.goal.partnerStatus == 'pending' && _ownerId != widget.currentUser.uid))
             IconButton(
               icon: const Icon(Icons.add_task),
               onPressed: () => _showAddTaskBottomSheet(context),
@@ -312,6 +343,35 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   }
 
   Widget _buildTasksList() {
+    if (widget.goal.partnerStatus == 'pending' && _ownerId != widget.currentUser.uid) {
+      return SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.only(top: 60),
+          child: Center(
+            child: Column(
+              children: [
+                Icon(
+                  Icons.favorite_rounded,
+                  size: 64,
+                  color: Colors.pink[100],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  "Hãy xác nhận tham gia để xem\nvà cùng thực hiện các nhiệm vụ nhé!",
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    color: Colors.grey[600],
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return StreamBuilder<List<GoalTaskModel>>(
       stream: _goalService.getTasksByGoalId(_ownerId, widget.goal.id),
       builder: (context, snapshot) {
@@ -362,7 +422,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    if (widget.goal.status != GoalStatus.archived)
+                    if (widget.goal.status != GoalStatus.archived && !(widget.goal.visibility == 'only_creator' && _ownerId != widget.currentUser.uid))
                       ElevatedButton.icon(
                         onPressed: () => _showAddTaskBottomSheet(context),
                         icon: const Icon(Icons.add),
@@ -421,8 +481,23 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   }
 
   Widget _buildTaskItem(GoalTaskModel task, {double opacity = 1.0}) {
-    // Only current user handles complete action
+    // Determine status based on participation mode
     final bool isCompleted = task.isCompleted;
+    final bool isCurrentUserDone = task.completedBy.contains(widget.currentUser.uid);
+    final bool isBothMode = widget.goal.participationMode == 'both';
+    final bool isSplitMode = widget.goal.participationMode == 'split';
+
+    // The checkbox should appear checked if the global task is completed, 
+    // OR if in 'both' mode and this specific user has marked it done.
+    final bool showChecked = isCompleted || (isBothMode && isCurrentUserDone);
+
+    // Permission to check:
+    bool canCheck = true;
+    if (isSplitMode && task.assignedTo != null && task.assignedTo != widget.currentUser.uid) {
+      if (widget.goal.visibility != 'both' && _ownerId != widget.currentUser.uid) {
+        canCheck = false; // Partner cannot check tasks assigned to creator in 'only_creator' mode
+      }
+    }
 
     return Opacity(
       opacity: opacity,
@@ -438,7 +513,13 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           children: [
             GestureDetector(
               onTap: () {
-                if (isCompleted) {
+                if (!canCheck) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Nhiệm vụ này được phân công cho Partner.")),
+                  );
+                  return;
+                }
+                if (showChecked) {
                   _goalService.undoCompleteTask(_ownerId, task.id);
                 } else {
                   _handleCompleteTask(task);
@@ -450,14 +531,14 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                 height: 26,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: isCompleted ? Colors.green : Colors.transparent,
+                  color: showChecked ? Colors.green : Colors.transparent,
                   border: Border.all(
-                    color: isCompleted ? Colors.green : Colors.grey[400]!,
+                    color: showChecked ? Colors.green : Colors.grey[400]!,
                     width: 2,
                   ),
                 ),
                 child:
-                    isCompleted
+                    showChecked
                         ? const Icon(Icons.check, size: 16, color: Colors.white)
                         : null,
               ),
@@ -494,34 +575,145 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                       ],
                     ),
                   ],
-                ],
-              ),
-            ),
-            PopupMenuButton<String>(
-              icon: Icon(Icons.more_vert, size: 20, color: Colors.grey[600]),
-              onSelected: (val) {
-                if (val == 'edit') {
-                  _showEditTaskDialog(task);
-                } else if (val == 'delete') {
-                  _confirmDeleteTask(task.id);
-                }
-              },
-              itemBuilder:
-                  (context) => [
-                    const PopupMenuItem(
-                      value: 'edit',
-                      child: Text("Đổi tên nhiệm vụ"),
+                  // Tags for Both and Split modes
+                  if (!isCompleted && isBothMode) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        if (isCurrentUserDone) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                _buildAvatar(widget.currentUser.uid, radius: 8),
+                                const SizedBox(width: 6),
+                                Text(
+                                  "Bạn đã xong",
+                                  style: TextStyle(fontSize: 12, color: Colors.green.shade800, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (task.completedBy.length == 1) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  _buildAvatar(_partnerUser?.uid ?? widget.currentUser.partnerId, radius: 8),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    "Chờ hoàn thành",
+                                    style: TextStyle(fontSize: 12, color: Colors.amber.shade900, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ] else if (task.completedBy.isNotEmpty) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                _buildAvatar(_partnerUser?.uid ?? widget.currentUser.partnerId, radius: 8),
+                                const SizedBox(width: 6),
+                                Text(
+                                  "Đã xong",
+                                  style: TextStyle(fontSize: 12, color: Colors.green.shade800, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                _buildAvatar(widget.currentUser.uid, radius: 8),
+                                const SizedBox(width: 6),
+                                Text(
+                                  "Đến lượt bạn",
+                                  style: TextStyle(fontSize: 12, color: Colors.amber.shade900, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Text(
-                        "Xóa nhiệm vụ",
-                        style: TextStyle(color: Colors.red),
+                  ],
+                  if (isSplitMode && task.assignedTo != null) ...[
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: task.assignedTo == widget.currentUser.uid ? Colors.blue.shade50 : Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildAvatar(task.assignedTo),
+                          const SizedBox(width: 6),
+                          Text(
+                            task.assignedTo == widget.currentUser.uid 
+                              ? "Của bạn" 
+                              : "Của Partner",
+                            style: TextStyle(
+                              fontSize: 12, 
+                              color: task.assignedTo == widget.currentUser.uid ? Colors.blue.shade900 : Colors.orange.shade900,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
+                ],
+              ),
             ),
+            if (!(widget.goal.visibility == 'only_creator' && _ownerId != widget.currentUser.uid))
+              PopupMenuButton<String>(
+                icon: Icon(Icons.more_vert, size: 20, color: Colors.grey[600]),
+                onSelected: (val) {
+                  if (val == 'edit') {
+                    _showEditTaskDialog(task);
+                  } else if (val == 'delete') {
+                    _confirmDeleteTask(task.id);
+                  }
+                },
+                itemBuilder:
+                    (context) => [
+                      const PopupMenuItem(
+                        value: 'edit',
+                        child: Text("Đổi tên nhiệm vụ"),
+                      ),
+
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Text(
+                          "Xóa nhiệm vụ",
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ],
+              ),
           ],
         ),
       ),
@@ -545,6 +737,10 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   void _showAddTaskBottomSheet(BuildContext context) {
     String title = "";
     TaskType type = TaskType.oneTime;
+    String assignedTo = widget.currentUser.uid;
+    String partnerIdForTask = _ownerId == widget.currentUser.uid 
+        ? (widget.currentUser.partnerId ?? '') 
+        : _ownerId;
 
     showModalBottomSheet(
       context: context,
@@ -590,6 +786,55 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
+                  if (widget.goal.participationMode == 'split') ...[
+                    Text(
+                      "Phân công cho",
+                      style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: assignedTo,
+                          isExpanded: true,
+                          items: [
+                            DropdownMenuItem(
+                              value: widget.currentUser.uid,
+                              child: Row(
+                                children: [
+                                  _buildAvatar(widget.currentUser.uid, radius: 10),
+                                  const SizedBox(width: 8),
+                                  const Text("Bản thân"),
+                                ],
+                              ),
+                            ),
+                            if (partnerIdForTask.isNotEmpty)
+                              DropdownMenuItem(
+                                value: partnerIdForTask,
+                                child: Row(
+                                  children: [
+                                    _buildAvatar(partnerIdForTask, radius: 10),
+                                    const SizedBox(width: 8),
+                                    const Text("Partner"),
+                                  ],
+                                ),
+                              ),
+                          ],
+                          onChanged: (val) {
+                            if (val != null) {
+                              setModalState(() => assignedTo = val);
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -601,6 +846,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                           goalId: widget.goal.id,
                           title: title.trim(),
                           type: type,
+                          assignedTo: widget.goal.participationMode == 'split' ? assignedTo : null,
                           frequency:
                               type == TaskType.repeating ? 'Hàng ngày' : null,
                           createdAt: DateTime.now(),

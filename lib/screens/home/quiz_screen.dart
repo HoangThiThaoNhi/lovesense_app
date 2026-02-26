@@ -64,7 +64,7 @@ class _QuizScreenState extends State<QuizScreen> {
 
             // Question
             Text(
-              question.question,
+              question.text,
               style: GoogleFonts.montserrat(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
@@ -74,10 +74,11 @@ class _QuizScreenState extends State<QuizScreen> {
             const SizedBox(height: 32),
 
             // Options
-            ...List.generate(question.options.length, (index) {
-              final option = question.options[index];
-              return _buildOption(index, option, question.correctIndex);
-            }),
+            if (question is MultipleChoiceQuestion)
+              ...List.generate(question.options.length, (index) {
+                final option = question.options[index];
+                return _buildOption(index, option, question.correctIndex);
+              }),
 
             const Spacer(),
 
@@ -216,7 +217,7 @@ class _QuizScreenState extends State<QuizScreen> {
               const SizedBox(height: 8),
               if (_score == widget.quiz.questions.length)
                 Text(
-                  "🏆 Tuyệt vời! Bạn nhận được ${widget.quiz.reward ?? 'quà'}",
+                  "🏆 Tuyệt vời! Bạn nhận được ${widget.quiz.rewardDescription.isNotEmpty ? widget.quiz.rewardDescription : '${widget.quiz.xpReward} XP'}",
                   style: GoogleFonts.inter(color: Colors.orange[800], fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                 )

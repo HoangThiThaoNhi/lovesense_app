@@ -13,6 +13,8 @@ class GoalTaskModel {
   final bool isArchived;
   final int streak;
   final DateTime createdAt;
+  final List<String> completedBy;
+  final String? assignedTo;
 
   GoalTaskModel({
     required this.id,
@@ -25,6 +27,8 @@ class GoalTaskModel {
     this.isArchived = false,
     this.streak = 0,
     required this.createdAt,
+    this.completedBy = const [],
+    this.assignedTo,
   });
 
   Map<String, dynamic> toMap() {
@@ -38,6 +42,8 @@ class GoalTaskModel {
       'isArchived': isArchived,
       'streak': streak,
       'createdAt': Timestamp.fromDate(createdAt),
+      'completedBy': completedBy,
+      'assignedTo': assignedTo,
     };
   }
 
@@ -56,6 +62,8 @@ class GoalTaskModel {
       isArchived: map['isArchived'] ?? false,
       streak: map['streak'] ?? 0,
       createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      completedBy: List<String>.from(map['completedBy'] ?? []),
+      assignedTo: map['assignedTo'],
     );
   }
 }

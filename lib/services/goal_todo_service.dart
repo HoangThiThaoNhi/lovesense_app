@@ -587,36 +587,68 @@ Ví dụ:
 
     if (taskDoc.exists) {
       final task = GoalTaskModel.fromMap(taskDoc.id, taskDoc.data()!);
-      if (task.type == TaskType.oneTime) {
-        await taskDoc.reference.update({'isCompleted': true});
-      } else {
-        // Repeating tasks: increase streak, but keep it incomplete or setup logic for resetting next day
-        // For now: mark completed, increase streak
-        await taskDoc.reference.update({
-          'isCompleted': true,
-          'streak': FieldValue.increment(1),
-        });
+
+      bool shouldMarkIsCompleted = true;
+      List<String> newCompletedBy = List.from(task.completedBy);
+      if (!newCompletedBy.contains(_currentUserId)) {
+        newCompletedBy.add(_currentUserId);
       }
 
-      // Check if it's a together goal to notify partner
+      // Check goal to determine participation rules and notify partner
       final goalDoc = await _firestore
           .collection('users')
           .doc(ownerId)
           .collection('goals')
           .doc(task.goalId)
           .get();
+
       if (goalDoc.exists) {
         final goal = GoalModel.fromMap(goalDoc.id, goalDoc.data()!);
+        
+        if (goal.participationMode == 'both' && newCompletedBy.length < 2) {
+          shouldMarkIsCompleted = false;
+        }
+
+        if (task.type == TaskType.oneTime) {
+          await taskDoc.reference.update({
+            'isCompleted': shouldMarkIsCompleted,
+            'completedBy': newCompletedBy,
+          });
+        } else {
+          await taskDoc.reference.update({
+            'isCompleted': shouldMarkIsCompleted,
+            'completedBy': newCompletedBy,
+            'streak': FieldValue.increment(1),
+          });
+        }
+
         if (goal.pillar == PillarType.together || goal.visibility == 'both') {
           final myDoc = await _firestore.collection('users').doc(_currentUserId).get();
           final partnerId = myDoc.data()?['partnerId'] as String?;
           if (partnerId != null && partnerId.isNotEmpty) {
+            String contentText = shouldMarkIsCompleted
+                ? 'Đã hoàn thành xong công việc "${task.title}" trong mục tiêu "${goal.title}" 🟢'
+                : 'Đã cập nhật 1 phần công việc "${task.title}" trong mục tiêu "${goal.title}" ⏳';
             await _notificationService.sendNotification(
               targetUserId: partnerId,
               type: NotificationType.goalUpdated,
-              content: 'Đã hoàn thành công việc "${task.title}" trong mục tiêu "${goal.title}"',
+              content: contentText,
             );
           }
+        }
+      } else {
+        // Fallback if goal not found
+        if (task.type == TaskType.oneTime) {
+          await taskDoc.reference.update({
+            'isCompleted': true,
+            'completedBy': newCompletedBy,
+          });
+        } else {
+          await taskDoc.reference.update({
+            'isCompleted': true,
+            'completedBy': newCompletedBy,
+            'streak': FieldValue.increment(1),
+          });
         }
       }
     }
@@ -625,12 +657,22 @@ Ví dụ:
   /// Undo Task Completion
   Future<void> undoCompleteTask(String ownerId, String taskId) async {
     if (ownerId.isEmpty) return;
-    await _firestore
+    final taskDoc = await _firestore
         .collection('users')
         .doc(ownerId)
         .collection('tasks')
         .doc(taskId)
-        .update({'isCompleted': false});
+        .get();
+        
+    if (taskDoc.exists) {
+      final task = GoalTaskModel.fromMap(taskDoc.id, taskDoc.data()!);
+      List<String> newCompletedBy = List.from(task.completedBy);
+      newCompletedBy.remove(_currentUserId);
+      await taskDoc.reference.update({
+        'isCompleted': false,
+        'completedBy': newCompletedBy,
+      });
+    }
   }
 
   /// Delete a Task

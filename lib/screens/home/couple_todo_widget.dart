@@ -438,40 +438,41 @@ class _CoupleTodoWidgetState extends State<CoupleTodoWidget> {
                                   ],
                                 ),
                               ),
-                            PopupMenuButton<String>(
-                              icon: Icon(
-                                Icons.more_vert,
-                                size: 20,
-                                color: Colors.grey[500],
-                              ),
-                              onSelected: (val) {
-                                if (val == 'archive') {
-                                  _goalService.archiveGoal(goal.id);
-                                } else if (val == 'edit') {
-                                  _showEditGoalDialog(goal);
-                                } else if (val == 'delete') {
-                                  _confirmDeleteGoal(goal.id);
-                                }
-                              },
-                              itemBuilder:
-                                  (context) => [
-                                    const PopupMenuItem(
-                                      value: 'edit',
-                                      child: Text("Đổi tên mục tiêu"),
-                                    ),
-                                    const PopupMenuItem(
-                                      value: 'archive',
-                                      child: Text("Lưu trữ mục tiêu"),
-                                    ),
-                                    const PopupMenuItem(
-                                      value: 'delete',
-                                      child: Text(
-                                        "Xóa mục tiêu",
-                                        style: TextStyle(color: Colors.red),
-                                      ),
-                                    ),
-                                  ],
-                            ),
+                              if (!(goal.visibility == 'only_creator' && goal.ownerId != widget.currentUser.uid))
+                                PopupMenuButton<String>(
+                                  icon: Icon(
+                                    Icons.more_vert,
+                                    size: 20,
+                                    color: Colors.grey[500],
+                                  ),
+                                  onSelected: (val) {
+                                    if (val == 'archive') {
+                                      _goalService.archiveGoal(goal.id);
+                                    } else if (val == 'edit') {
+                                      _showEditGoalDialog(goal);
+                                    } else if (val == 'delete') {
+                                      _confirmDeleteGoal(goal.id);
+                                    }
+                                  },
+                                  itemBuilder:
+                                      (context) => [
+                                        const PopupMenuItem(
+                                          value: 'edit',
+                                          child: Text("Đổi tên mục tiêu"),
+                                        ),
+                                        const PopupMenuItem(
+                                          value: 'archive',
+                                          child: Text("Lưu trữ mục tiêu"),
+                                        ),
+                                        const PopupMenuItem(
+                                          value: 'delete',
+                                          child: Text(
+                                            "Xóa mục tiêu",
+                                            style: TextStyle(color: Colors.red),
+                                          ),
+                                        ),
+                                      ],
+                                ),
                           ],
                         ),
                         const SizedBox(height: 8),
@@ -479,8 +480,6 @@ class _CoupleTodoWidgetState extends State<CoupleTodoWidget> {
                           // If pending and I am NOT the creator, show Accept/Decline
                           if (goal.partnerStatus == 'pending' && goal.ownerId != widget.currentUser.uid)
                             _buildPendingGoalBanner(goal)
-                          else if (goal.participationMode == 'both')
-                            _buildBothParticipationProgress(goal)
                           else if (goal.successMeasurement == 'streak')
                             Row(
                               children: [
@@ -682,6 +681,16 @@ class _CoupleTodoWidgetState extends State<CoupleTodoWidget> {
   }
 
   Widget _buildPendingGoalBanner(GoalModel goal) {
+    // Generate text based on visibility rule
+    String pendingText = "";
+    if (goal.visibility == 'both') {
+      pendingText =
+          "Partner muốn cùng bạn hoàn thành mục tiêu ${goal.title} này đó 💕\nHãy cùng nhau chỉnh sửa và cố gắng nhé!";
+    } else {
+      pendingText =
+          "💌 Partner đã tạo mục tiêu ${goal.title} cùng bạn 💛\nBạn cùng đồng hành và hoàn thành nhé!";
+    }
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
@@ -699,7 +708,7 @@ class _CoupleTodoWidgetState extends State<CoupleTodoWidget> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  "Partner vừa mời bạn tham gia mục tiêu này",
+                  pendingText,
                   style: GoogleFonts.inter(
                     fontWeight: FontWeight.bold,
                     color: Colors.orange.shade900,
@@ -742,88 +751,6 @@ class _CoupleTodoWidgetState extends State<CoupleTodoWidget> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildBothParticipationProgress(GoalModel goal) {
-    bool myDone = goal.completedBy.contains(widget.currentUser.uid);
-    String partnerId = widget.currentUser.partnerId ?? '';
-    bool realPartnerDone = partnerId.isNotEmpty && goal.completedBy.contains(partnerId);
-
-    if (partnerId.isEmpty) {
-      realPartnerDone = goal.completedBy.length >= 2;
-    }
-
-    bool fullyDone = myDone && realPartnerDone;
-    double progress = (myDone ? 0.5 : 0) + (realPartnerDone ? 0.5 : 0);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text("👤 Bạn: ${myDone ? '✅ Đã hoàn thành' : '⏳ Chưa hoàn thành'}", 
-                  style: GoogleFonts.inter(fontSize: 13, color: myDone ? Colors.green[700] : Colors.grey[700])),
-                const SizedBox(height: 4),
-                Text("👤 Partner: ${realPartnerDone ? '✅ Đã hoàn thành' : (myDone ? '⏳ Đang chờ' : '⏳ Chưa hoàn thành')}", 
-                  style: GoogleFonts.inter(fontSize: 13, color: realPartnerDone ? Colors.green[700] : Colors.grey[700])),
-              ],
-            ),
-            if (fullyDone)
-               Container(
-                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                 decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(12)),
-                 child: Text("🎉 Hoàn thành", style: TextStyle(color: Colors.green.shade800, fontSize: 12, fontWeight: FontWeight.bold))
-               )
-          ],
-        ),
-        const SizedBox(height: 12),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: LinearProgressIndicator(
-            value: progress,
-            minHeight: 8,
-            backgroundColor: Colors.grey[200],
-            color: fullyDone ? Colors.green : Colors.blue,
-          ),
-        ),
-        const SizedBox(height: 12),
-        if (!myDone)
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                _goalService.toggleGoalCompletionStatus(
-                  goal.ownerId.isEmpty ? widget.currentUser.uid : goal.ownerId, 
-                  goal.id, 
-                  widget.currentUser.uid, 
-                  true
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue.shade600,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              child: const Text("Tôi đã thực hiện"),
-            ),
-          )
-        else if (!fullyDone)
-          Container(
-             width: double.infinity,
-             padding: const EdgeInsets.symmetric(vertical: 10),
-             decoration: BoxDecoration(
-               color: Colors.grey.shade100,
-               borderRadius: BorderRadius.circular(8),
-               border: Border.all(color: Colors.grey.shade300)
-             ),
-             child: const Center(child: Text("Đang chờ partner xác nhận...", style: TextStyle(color: Colors.grey)))
-          ),
-      ]
     );
   }
 }

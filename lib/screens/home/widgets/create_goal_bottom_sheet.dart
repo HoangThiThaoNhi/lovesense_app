@@ -31,7 +31,6 @@ class _CreateGoalBottomSheetState extends State<CreateGoalBottomSheet> {
   int _baselineScore = 3;
   bool _requiresPartnerConfirmation = false;
   String? _commitmentLevel;
-  bool _autoSuggestTasks = true;
   int? _targetCount;
   String? _streakType = 'both';
   int? _targetScore = 4;
@@ -150,7 +149,7 @@ class _CreateGoalBottomSheetState extends State<CreateGoalBottomSheet> {
             widget.pillar == PillarType.forUs ? _commitmentLevel : null,
       );
 
-      await _goalService.createGoal(goal, autoSuggestTasks: _autoSuggestTasks);
+      await _goalService.createGoal(goal);
 
       if (mounted) {
         widget.onGoalCreated();
@@ -575,16 +574,6 @@ class _CreateGoalBottomSheetState extends State<CreateGoalBottomSheet> {
   }
 
   Widget _buildConditionalSection() {
-    if (widget.pillar == PillarType.myGrowth) {
-      return CheckboxListTile(
-        title: const Text("Nhắc tôi thêm task ngay sau khi tạo"),
-        value: _autoSuggestTasks,
-        contentPadding: EdgeInsets.zero,
-        controlAffinity: ListTileControlAffinity.leading,
-        onChanged: (val) => setState(() => _autoSuggestTasks = val ?? false),
-      );
-    }
-
     if (widget.pillar == PillarType.together) {
       return Container(
         padding: const EdgeInsets.all(16),

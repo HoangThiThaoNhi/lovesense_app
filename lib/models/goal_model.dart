@@ -114,7 +114,7 @@ class GoalModel {
       partnerStatus: map['partnerStatus'] ?? 'active',
       visibility: map['visibility'] ?? 'both',
       commitmentLevel: map['commitmentLevel'],
-      participationMode: map['participationMode'],
+      participationMode: map['participationMode'] ?? (map['pillar'] == PillarType.together.name ? 'both' : null),
       partnerBaselineScore: map['partnerBaselineScore'],
       completedBy: List<String>.from(map['completedBy'] ?? []),
       targetCount: map['targetCount'],
